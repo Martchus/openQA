@@ -479,7 +479,12 @@ sub upload_status(;$) {
     $upload_up_to = '' if $final_upload;
 
     if ($status->{status}->{needinput}) {
-        $status->{result} = {$current_running => read_module_result($os_status->{running})};
+        warn '$current_running not set in upload_status()' if !$current_running;
+        my $module_result = read_module_result($os_status->{running});
+        # read_json_file prints already a warning so no need to handle !$module_result
+        if ($module_result && $current_running) {
+            $status->{result} = {$current_running => $module_result};
+        }
     }
     elsif (defined($upload_up_to)) {
         my $extra_test_order = [];
