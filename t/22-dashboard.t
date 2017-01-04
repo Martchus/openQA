@@ -365,6 +365,22 @@ is(scalar @urls, 12, 'now builds belong to different versions and are split');
 is($urls[1]->attr('href'), '/tests/overview?distri=suse&version=14.2&build=87.5011&groupid=1001', 'most recent version/build');
 is($urls[-1]->attr('href'), '/tests/overview?distri=opensuse&version=13.1&build=0091&groupid=1002', 'oldest version/build still shown');
 
+subtest 'proper build sorting for dotted build number' => sub {
+    my $group = $job_groups->create({name => 'dotted version group'});
+    $job_hash->{group_id} = $group->id;
+    $job_hash->{VERSION} = '42.1';
+    my @builds = qw(62.51 62.50 62.49 62.5);
+    for my $build (@builds) {
+        $job_hash->{BUILD} = $build;
+        $jobs->create($job_hash);
+    }
+
+    $get = $t->get_ok('/group_overview/' . $group->id)->status_is(200);
+    my @h4 = $get->tx->res->dom->find("div.no-children h4 a")->map('text')->each;
+    my @build_names = map { 'Build' . $_ } @builds;
+    is_deeply(\@h4, \@build_names, 'builds shown sorted') || diag explain @h4;
+};
+
 subtest 'job groups with multiple version and builds' => sub {
     my $group = $job_groups->create({name => 'multi version group'});
     $job_hash->{group_id} = $group->id;
