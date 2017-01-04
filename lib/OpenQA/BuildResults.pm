@@ -113,6 +113,8 @@ sub compute_build_results {
     my $search_opts = {
         select => ['VERSION', 'BUILD', {min => 't_created', -as => 'first_hit'}],
         as     => [qw(VERSION BUILD first_hit)],
+        # order-by is required here despite it is not relevant when iterating results
+        # because the ordering must be applied before the row limit is applied
         order_by => {-desc => 'first_hit'},
         group_by => [qw(VERSION BUILD)]};
     $search_opts->{rows} = $limit if defined($limit);
