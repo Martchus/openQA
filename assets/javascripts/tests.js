@@ -75,33 +75,33 @@ function renderTestName ( data, type, row ) {
 function renderTestResult( data, type, row ) {
     if (type === 'display') {
         var html = '';
-        if (row['state'] === 'done') {
-            html += data['passed'] + "<i class='fa module_passed fa-star' title='modules passed'></i>";
-            if (data['softfailed']) {
-                html += " " + data['softfailed'] + "<i class='fa module_softfail fa-star-half-empty' title='modules with warnings'></i>";
+        if (row.state === 'done') {
+            html += data.passed + "<i class='fa module_passed fa-star' title='modules passed'></i>";
+            if (data.softfailed) {
+                html += " " + data.softfailed + "<i class='fa module_softfail fa-star-half-empty' title='modules with warnings'></i>";
             }
-            if (data['failed']) {
-                html += " " + data['failed'] + "<i class='fa module_failed fa-star-o' title='modules failed'></i>";
+            if (data.failed) {
+                html += " " + data.failed + "<i class='fa module_failed fa-star-o' title='modules failed'></i>";
             }
-            if (data['none']) {
-                html += " " + data['none'] + "<i class='fa module_none fa-ban' title='modules skipped'></i>";
+            if (data.none) {
+                html += " " + data.none + "<i class='fa module_none fa-ban' title='modules skipped'></i>";
             }
         }
-        if (row['state'] === 'cancelled') {
+        if (row.state === 'cancelled') {
             html += "<i class='fa fa-times' title='canceled'></i>";
         }
-        if (row['deps']['parents']['Parallel'].length + row['deps']['parents']['Chained'].length > 0) {
-            if (row['result'] === 'skipped' ||
-                row['result'] === 'parallel_failed') {
+        if (row.deps.parents.Parallel.length + row.deps.parents.Chained.length > 0) {
+            if (row.result === 'skipped' ||
+                row.result === 'parallel_failed') {
                 html += " <i class='fa fa-chain-broken' title='dependency failed'></i>";
             }
             else {
                 html += " <i class='fa fa-link' title='dependency passed'></i>";
             }
         }
-        return '<a href="/tests/' + row['id'] + '">' + html + '</a>';
+        return '<a href="/tests/' + row.id + '">' + html + '</a>';
     } else {
-        return (parseInt(data['passed']) * 10000) + (parseInt(data['softfailed']) * 100) + parseInt(data['failed']);
+        return (parseInt(data.passed) * 10000) + (parseInt(data.softfailed) * 100) + parseInt(data.failed);
     }
 }
 
