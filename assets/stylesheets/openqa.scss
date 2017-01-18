@@ -786,3 +786,18 @@ h2 + * {
         font-size: 120%;
     }
 }
+
+.changelog {
+    ul {
+        font-weight: bold;
+
+        p {
+            margin-top: 10px;
+            margin-bottom: 0px;
+        }
+
+        ul, span {
+            font-weight: normal;
+        }
+    }
+}

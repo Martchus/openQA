@@ -93,6 +93,8 @@
                               <li class="dropdown-header">Documentation</li>
                               <li><a href="http://open.qa/docs" target="blank">openQA</a></li>
                               <li><%= link_to "API help" => url_for('api_help') %></li>
+                              <li class="dropdown-header">Misc</li>
+                              <li><%= link_to(Changelog => url_for('changelog')) %></li>
                           </ul>
                       </li>
                       % if (current_user) {

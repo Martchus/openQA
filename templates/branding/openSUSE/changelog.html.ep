@@ -1,0 +1,14 @@
+% use Encode qw(decode);
+% my $changelog;
+% if (open(my $changelog_file, '<', '/usr/share/openqa/public/ChangeLog')) {
+%     read($changelog_file, $changelog, -s $changelog_file);
+%     close($changelog_file);
+%     $changelog = Mojo::ByteStream->new(Text::Markdown->new->markdown($changelog));
+% }
+% elsif($changelog = `git describe`) {
+%     $changelog = 'No changelog available, currently running Git checkout ' . $changelog;
+% }
+% $changelog = 'No changelog available.' unless $changelog;
+<p>
+    %= $changelog
+</p>
