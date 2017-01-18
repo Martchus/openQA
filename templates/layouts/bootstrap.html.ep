@@ -113,10 +113,10 @@
                                           <li><%= link_to('Audit log' => url_for('audit_log')) %></li>
                                       % }
                                       <li role="separator" class="divider"></li>
-                                      <li>
-                                         %= link_to "Manage API keys" => url_for('api_keys')
-                                         %= link_to "API help" => url_for('api_help')
-                                      </li>
+                                      <li><%= link_to "Manage API keys" => url_for('api_keys') %></li>
+                                      <li><%= link_to "API help" => url_for('api_help') %></li>
+                                      <li><%= link_to(Changelog => url_for('changelog')) %></li>
+                                      <li role="separator" class="divider"></li>
                                   % }
                                   <li>
                                       %= link_to('Logout' => url_for('logout') => 'data-method' => 'delete');

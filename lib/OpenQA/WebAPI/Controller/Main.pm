@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016 SUSE LLC
+# Copyright (C) 2015-2017 SUSE LLC
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ use OpenQA::Schema::Result::Jobs;
 use OpenQA::BuildResults;
 use OpenQA::Utils;
 use Scalar::Util 'looks_like_number';
+use Encode qw(decode);
 
 sub _map_tags_into_build {
     my ($results, $tags) = @_;
@@ -160,6 +161,21 @@ sub job_group_overview {
 sub parent_group_overview {
     my ($self) = @_;
     $self->group_overview('JobGroupParents', 'main/parent_group_overview');
+}
+
+sub changelog {
+    my ($self) = @_;
+
+    my $changelog;
+    if (open(my $changelog_file, '<', '/usr/share/openqa/public/ChangeLog')) {
+        read($changelog_file, $changelog, -s $changelog_file);
+        close($changelog_file);
+        $changelog = Mojo::ByteStream->new(Text::Markdown->new->markdown($changelog));
+    }
+    else {
+        $changelog = 'No changelog available.';
+    }
+    $self->stash(changelog => $changelog);
 }
 
 1;

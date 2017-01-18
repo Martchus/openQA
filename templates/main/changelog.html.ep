@@ -1,0 +1,13 @@
+% layout 'bootstrap';
+% title '';
+
+%= include 'layouts/info'
+
+% content_for 'ready_function' => begin
+    setupIndexPage();
+% end
+
+<h2>Changelog for web UI</h2>
+<div class="changelog">
+    %= $changelog
+</div>
