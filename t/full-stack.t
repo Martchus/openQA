@@ -111,6 +111,15 @@ my $resultdir = 't/full-stack.d/openqa/testresults/';
 remove_tree($resultdir);
 ok(make_path($resultdir));
 remove_tree('t/full-stack.d/openqa/images/');
+# ensure log always exists when starting streaming so the covered code is always the same
+for my $path (qw(00000001-tinycore-1-flavor-i386-Build1-core@coolone 00000004-tinycore-1-flavor-i386-Build1-core@noassets 00000005-tinycore-1-flavor-i386-Build1-core@coolone 00000006-tinycore-1-flavor-i386-Build1-core@coolone)) {
+    ok(make_path("$resultdir/00000/$path"));
+    ok(open(my $fh, '>', "$resultdir/00000/$path/autoinst-log.txt"));
+    for(my $index = 0; $index != 1024; $index++) {
+        print $fh "0123456789\n";
+    }
+    close($fh);
+}
 
 $driver->title_is("openQA", "on main page");
 is($driver->find_element('#user-action a')->get_text(), 'Login', "noone logged in");
