@@ -19,6 +19,7 @@ use strict;
 use Mojo::Base 'Mojolicious::Controller';
 use OpenQA::Utils;
 use OpenQA::Schema::Result::Jobs;
+use OpenQA::ServerSideDataTable;
 use File::Basename;
 use POSIX 'strftime';
 use JSON 'decode_json';
@@ -50,17 +51,6 @@ sub list {
     my $groupid = $self->param('groupid');
     my $limit   = $self->param('limit') // 500;
 
-    my $jobs = $self->db->resultset("Jobs")->complex_query(
-        state   => 'done,cancelled',
-        match   => $match,
-        scope   => $scope,
-        assetid => $assetid,
-        groupid => $groupid,
-        limit   => $limit,
-        idsonly => 1
-    );
-    $self->stash(jobs => $jobs);
-
     my $running = $self->db->resultset("Jobs")->complex_query(
         state   => 'running,waiting',
         match   => $match,
@@ -90,10 +80,80 @@ sub list {
     $self->stash(scheduled => \@scheduled);
 }
 
-sub list_ajax {
-    my ($self)  = @_;
+sub list_finished_ajax {
+    my ($self) = @_;
+
     my $assetid = $self->param('assetid');
     my $groupid = $self->param('groupid');
+    my $scope   = $self->param('relevant') ne 'false' ? 'relevant' : '';
+    my @search_conds;
+    if (my $search_value = $self->param('search[value]')) {
+        $search_value = '%' . $search_value . '%';
+        for my $column (qw(me.BUILD me.DISTRI me.VERSION me.FLAVOR me.ARCH me.TEST)) {
+            push(@search_conds, {$column => {-like => $search_value}});
+        }
+    }
+    my $jobs = $self->db->resultset('Jobs')->complex_query(
+        state   => 'done,cancelled',
+        scope   => $scope,
+        assetid => $assetid,
+        groupid => $groupid,
+        limit   => 500,
+        idsonly => @search_conds ? 0 : 1,
+    );
+    my @columns
+      = qw(me.id MACHINE DISTRI VERSION FLAVOR ARCH BUILD TEST state clone_id test result group_id t_finished);
+
+    OpenQA::ServerSideDataTable::render_response(
+        controller            => $self,
+        resultset             => $jobs,
+        columns               => \@columns,
+        filter_conds          => [-or => \@search_conds],
+        prepare_data_function => sub {
+            my ($jobs) = @_;
+
+            my @job_ids;
+            while (my $job = $jobs->next) {
+                push(@job_ids, $job->id);
+            }
+
+            my $job_module_stats = OpenQA::Schema::Result::JobModules::job_module_stats(\@job_ids);
+            my @jobs             = $self->db->resultset('Jobs')->search(
+                {'me.id' => {in => \@job_ids}},
+                {
+                    columns  => \@columns,
+                    order_by => ['me.t_finished DESC, me.id DESC'],
+                    prefetch => [qw(children parents)],
+                })->all;
+            # need to use all as the order is too complex for a cursor
+
+            my @data;
+            for my $job (@jobs) {
+                push(
+                    @data,
+                    {
+                        DT_RowId     => 'job_' . $job->id,
+                        id           => $job->id,
+                        result_stats => $job_module_stats->{$job->id},
+                        deps         => $job->dependencies,
+                        clone        => $job->clone_id,
+                        test         => $job->TEST . "@" . ($job->MACHINE // ''),
+                        distri  => $job->DISTRI  // '',
+                        version => $job->VERSION // '',
+                        flavor  => $job->FLAVOR  // '',
+                        arch    => $job->ARCH    // '',
+                        build   => $job->BUILD   // '',
+                        testtime => $job->t_finished . 'Z',
+                        result   => $job->result,
+                        group    => $job->group_id,
+                        state    => $job->state
+                    });
+            }
+            return \@data;
+        },
+    );
+
+    return;
 
     my @ids;
     # we have to seperate the initial loading and the reload
