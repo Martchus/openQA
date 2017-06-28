@@ -204,6 +204,41 @@ __PACKAGE__->has_many(parents  => 'OpenQA::Schema::Result::JobDependencies', 'ch
 __PACKAGE__->has_many(
     modules => 'OpenQA::Schema::Result::JobModules',
     'job_id', {cascade_delete => 0, order_by => 'id'});
+__PACKAGE__->has_many(
+    module_stats => 'OpenQA::Schema::Result::JobModules',
+    'job_id', {
+        cascade_delete => 0,
+        select   => ['job_id', 'result', {count => 'id'}],
+        as       => [qw(job_id result count)],
+        group_by => [qw(job_id result)],
+        order_by => 'result'});
+__PACKAGE__->has_many(
+    passed_modules => 'OpenQA::Schema::Result::JobModules',
+    'job_id', {
+        cascade_delete => 0,
+        select   => ['job_id', 'result', {count => 'id'}],
+        as       => [qw(job_id result count)],
+        group_by => [qw(job_id result)],
+        order_by => 'result',
+        having => {result => {'=' => 'passed'}}});
+__PACKAGE__->has_many(
+    failed_modules => 'OpenQA::Schema::Result::JobModules',
+    'job_id', {
+        cascade_delete => 0,
+        select   => ['job_id', 'result', {count => 'id'}],
+        as       => [qw(job_id result count)],
+        group_by => [qw(job_id result)],
+        order_by => 'result',
+        having => {result => {'=' => 'failed'}}});
+__PACKAGE__->has_many(
+    skipped_modules => 'OpenQA::Schema::Result::JobModules',
+    'job_id', {
+        cascade_delete => 0,
+        select   => ['job_id', 'result', {count => 'id'}],
+        as       => [qw(job_id result count)],
+        group_by => [qw(job_id result)],
+        order_by => 'result',
+        having => {result => {'=' => 'skipped'}}});
 # Locks
 __PACKAGE__->has_many(owned_locks  => 'OpenQA::Schema::Result::JobLocks', 'owner');
 __PACKAGE__->has_many(locked_locks => 'OpenQA::Schema::Result::JobLocks', 'locked_by');

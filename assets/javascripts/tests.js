@@ -161,13 +161,13 @@ function renderTestsList() {
               className: "test",
               render: renderTestName
             },
+            { targets: 2,
+                render: renderTestResult
+            },
             { targets: 3,
               className: "time",
               render: renderTimeAgo
             },
-            { targets: 2,
-              render: renderTestResult
-            }
         ]
     } );
     $("#relevantbox").detach().appendTo('#toolbar');

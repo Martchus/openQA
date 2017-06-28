@@ -101,16 +101,25 @@ sub list_finished_ajax {
         limit   => 500,
         idsonly => @search_conds ? 0 : 1,
     );
-    my @columns
-      = qw(me.id MACHINE DISTRI VERSION FLAVOR ARCH BUILD TEST state clone_id test result group_id t_finished);
 
     OpenQA::ServerSideDataTable::render_response(
         controller            => $self,
         resultset             => $jobs,
-        columns               => \@columns,
+        columns               => [
+                                    [qw(BUILD DISTRI VERSION FLAVOR ARCH)],
+                                    [qw(TEST MACHINE)],
+                                    [qw(passed_modules.count)],
+                                    [qw(t_finished)],
+                                 ],
         filter_conds          => [-or => \@search_conds],
+        additional_params => {
+
+        },
         prepare_data_function => sub {
-            my ($jobs) = @_;
+            my ($jobs, $order_by_params) = @_;
+
+            use Data::Dumper;
+            OpenQA::Utils::log_debug('order_by_params' . Dumper($order_by_params));
 
             my @job_ids;
             while (my $job = $jobs->next) {
@@ -118,23 +127,26 @@ sub list_finished_ajax {
             }
 
             my $job_module_stats = OpenQA::Schema::Result::JobModules::job_module_stats(\@job_ids);
-            my @jobs             = $self->db->resultset('Jobs')->search(
+            my $jobs_results     = $self->db->resultset('Jobs')->search(
                 {'me.id' => {in => \@job_ids}},
                 {
-                    columns  => \@columns,
-                    order_by => ['me.t_finished DESC, me.id DESC'],
+                    columns  => [qw(me.id MACHINE DISTRI VERSION FLAVOR ARCH BUILD TEST state clone_id test result group_id t_finished)],
+                    order_by => $order_by_params,
                     prefetch => [qw(children parents)],
-                })->all;
-            # need to use all as the order is too complex for a cursor
+                });
 
             my @data;
-            for my $job (@jobs) {
+            while (my $job = $jobs_results->next) {
                 push(
                     @data,
                     {
                         DT_RowId     => 'job_' . $job->id,
                         id           => $job->id,
                         result_stats => $job_module_stats->{$job->id},
+                        result_stats => {passed => $job->passed_modules->first->get_column('count'),
+                                        failed => $job->failed_modules->first ? $job->failed_modules->first->get_column('count') : undef,
+                                        skipped => failed => $job->skipped_modules->first ? $job->skipped_modules->first->get_column('count') : undef,
+                                        softfailed => 0, none => 0},
                         deps         => $job->dependencies,
                         clone        => $job->clone_id,
                         test         => $job->TEST . "@" . ($job->MACHINE // ''),

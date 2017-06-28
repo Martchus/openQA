@@ -70,7 +70,7 @@ sub render_response {
     # get results and compute data for JSON serialization using
     # provided function
     my $results = $resultset->search({-and => $filter_conds}, $params);
-    my $data = $prepare_data_function->($results);
+    my $data = $prepare_data_function->($results, \@order_by_params);
 
     $controller->render(
         json => {
