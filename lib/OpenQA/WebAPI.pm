@@ -324,11 +324,17 @@ sub startup {
 
     # api/v1/job_groups
     $api_public_r->get('/job_groups')->name('apiv1_list_job_groups')->to('job_group#list');
+    $api_description{apiv1_list_job_groups} = 'Lists all job groups.';
     $api_public_r->get('/job_groups/:group_id')->name('apiv1_get_job_group')->to('job_group#list');
+    $api_description{apiv1_get_job_group} = 'Returns the job group with the specified ID.';
     $api_public_r->get('/job_groups/:group_id/jobs')->name('apiv1_get_job_group_jobs')->to('job_group#list_jobs');
+    $api_description{apiv1_get_job_group_jobs} = 'Lists all jobs in the job group with the specified ID.';
     $api_ra->post('/job_groups')->name('apiv1_post_job_group')->to('job_group#create');
+    $api_description{apiv1_post_job_group} = 'Creates a new job group. Parameter must match the keys used by the GET variant.';
     $api_ra->put('/job_groups/:group_id')->name('apiv1_put_job_group')->to('job_group#update');
+    $api_description{apiv1_put_job_group} = 'Updates an existing job group. Parameter must match the keys used by the GET variant. Omitted columns are left unaltered.';
     $api_ra->delete('/job_groups/:group_id')->name('apiv1_delete_job_group')->to('job_group#delete');
+    $api_description{apiv1_delete_job_group} = 'Deletes the specified job group.';
 
     # api/v1/parent_groups
     $api_public_r->get('/parent_groups')->name('apiv1_list_parent_groups')->to('job_group#list');
