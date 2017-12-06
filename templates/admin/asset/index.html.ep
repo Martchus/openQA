@@ -11,6 +11,7 @@
 
         %= include 'layouts/info'
 
+        <h3>Assets in groups</h3>
         <table id="assets" class="display table table-striped">
             <thead>
                 <tr>
@@ -24,6 +25,7 @@
             </thead>
             <tbody>
             % while (my $asset = $assets->next()) {
+                % next unless ($asset->last_use_job_id);
             <tr id="asset_<%= $asset->id %>">
                 <td class="type"><%= $asset->type %></td>
                 <td class="name"><%= $asset->name %></td>
@@ -33,17 +35,40 @@
                 </td>
                 <td class="size"><%= $asset->size %></td>
                 <td class="last_use">
-                    % if (my $last_use_job = $asset->last_use_job) {
-                        % if (my $group = $last_use_job->group) {
-                            <%= link_to($group->name => url_for(is_admin() ? 'admin_job_templates' : 'group_overview', groupid => $group->id)); %>:
-                        % }
-                        %= link_to($last_use_job->name => url_for('test', testid => $last_use_job->id))
+                    % my $last_use_job = $asset->last_use_job;
+                    % if (my $group = $last_use_job->group) {
+                        <%= link_to($group->name => url_for(is_admin() ? 'admin_job_templates' : 'group_overview', groupid => $group->id)); %>:
                     % }
-                    % else {
-                        unknown
-                    % }
+                    %= link_to($last_use_job->name => url_for('test', testid => $last_use_job->id))
                 </td>
             </tr>
+            % }
+
+            </tbody>
+        </table>
+
+        <h3>Untracked assets</h3>
+        <table id="untracked-assets" class="display table table-striped">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Name</th>
+                    <th>Created</th>
+                    <th>Size</th>
+                </tr>
+            </thead>
+            <tbody>
+            % $assets->reset();
+            % while (my $asset = $assets->next()) {
+                % next if ($asset->last_use_job_id);
+                <tr id="asset_<%= $asset->id %>">
+                    <td class="type"><%= $asset->type %></td>
+                    <td class="name"><%= $asset->name %></td>
+                    <td class="t_created">
+                        %= $asset->t_created
+                    </td>
+                    <td class="size"><%= $asset->size %></td>
+                </tr>
             % }
             </tbody>
         </table>
