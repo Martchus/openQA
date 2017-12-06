@@ -83,3 +83,19 @@ function updateQueryParams(params) {
     });
     history.replaceState({} , document.title, window.location.pathname + '?' + search.join('&'));
 }
+
+function renderDataSize(sizeInByte, digits) {
+    var unitFactor = 1073741824; // one GiB
+    var dataWithUnit = 0;
+    $.each([' GiB', ' MiB', ' KiB', ' byte'], function(index, unit) {
+        if (!unitFactor || sizeInByte >= unitFactor) {
+            dataWithUnit = (sizeInByte / unitFactor) + unit;
+            return false;
+        }
+        unitFactor >>= 10;
+    });
+    if (digits) {
+        return dataWithUnit.toFixed(digits);
+    }
+    return dataWithUnit;
+}
