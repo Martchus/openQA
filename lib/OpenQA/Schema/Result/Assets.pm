@@ -250,11 +250,12 @@ sub limit_assets {
     # ratios, it's up to the admin to configure the size limit)
 
     # define variables to keep track of all assets related to jobs
-    my %seen_asset;    # group ID by asset ID, just to find assets having no group
-    my %toremove;      # assets to be removed when $doremove
-    my %keep;          # assets needed to be kept
-    my $doremove   = 0;    # whether we actually want to remove something
-    my $debug_keep = 0;    # enables debug output
+    my %seen_asset;       # group ID by asset ID, just to find assets having no group
+    my %toremove;         # assets to be removed when $doremove
+    my %keep;             # assets needed to be kept
+    my %size_by_group;    # the size of assets which are exclusively kept by a certain group
+    my $doremove   = 0;   # whether we actually want to remove something
+    my $debug_keep = 0;   # enables debug output
 
     # these querie are just too much for dbix
     my $dbh = $app->schema->storage->dbh;
@@ -281,6 +282,9 @@ sub limit_assets {
         my $sizelimit = $g->size_limit_gb * 1024 * 1024 * 1024;
         my $reduceto  = $sizelimit * 0.8;
 
+        # initialize %size_by_group for the current group
+        $size_by_group{$g->id} = 0;
+
         $job_assets_sth->execute($g->id);
 
         # define variable to keep track of all the jobs which have been kept
@@ -305,17 +309,20 @@ sub limit_assets {
             my $size = $asset->ensure_size;
             if ($size > 0 && $reduceto > 0) {
                 # keep asset
-                push(
-                    @kept_by_jobgroup,
-                    $keep{$a->{id}} = {
-                        group_id => $g->id,
-                        job_id   => $a->{max},
-                        log_msg  => sprintf("%s: %s/%s", $g->name, $asset->type, $asset->name),
-                    });
+                my $asset_id = $a->{id};
+                my $kept_asset = $keep{$asset_id} = {
+                    group_id  => $g->id,
+                    job_id    => $a->{max},
+                    log_msg   => sprintf("%s: %s/%s", $g->name, $asset->type, $asset->name),
+                    size      => $size,
+                    exclusive => not defined($keep{$asset_id}),
+                };
+
+                # add asset to list by assets kept by the current job group (used for debugging purposes only)
+                push(@kept_by_jobgroup, $kept_asset) if $debug_keep;
 
                 # of course this might override the group/job information about the kept asset
-                # in case the asset is kept because of multiple jobs
-                # FIXME: problem? at least we get some job/group which prevents the asset from being deleted
+                # in case the asset is kept because of multiple jobs (indicated by exclusive flag)
             }
             else {
                 # add assets to removal list
@@ -341,6 +348,7 @@ sub limit_assets {
     my $update_sth = $dbh->prepare('UPDATE assets SET last_use_job_id = ? WHERE id = ?');
 
     # remove all kept assets from the removal list and propagate last update to asset table
+    # and accumulate size of exclusively kept assets per job group
     for my $id (sort keys %keep) {
         my $asset = $keep{$id};
 
@@ -349,6 +357,8 @@ sub limit_assets {
 
         # set the time of the last use and the related job group
         $update_sth->execute($asset->{job_id}, $id);
+
+        $size_by_group{$asset->{group_id}} += $asset->{size} if $asset->{exclusive};
     }
 
     # remove assets in removal list (from db and disk)
@@ -372,6 +382,12 @@ sub limit_assets {
             $a->remove_from_disk;
             $a->delete;
         }
+    }
+
+    # update accumulated sizes in the data base
+    $update_sth = $dbh->prepare('UPDATE job_groups SET exclusively_kept_asset_size = ? WHERE id = ?');
+    for my $group_id (keys %size_by_group) {
+        $update_sth->execute($size_by_group{$group_id}, $group_id);
     }
 
     # find assets which do not belong to a job group
