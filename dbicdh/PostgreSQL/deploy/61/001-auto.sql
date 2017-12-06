@@ -1,6 +1,6 @@
 -- 
 -- Created by SQL::Translator::Producer::PostgreSQL
--- Created on Wed Dec  6 09:30:59 2017
+-- Created on Wed Dec  6 10:48:33 2017
 -- 
 ;
 --
@@ -327,6 +327,7 @@ CREATE TABLE job_groups (
   name text NOT NULL,
   parent_id integer,
   size_limit_gb integer,
+  exclusively_kept_asset_size integer,
   keep_logs_in_days integer,
   keep_important_logs_in_days integer,
   keep_results_in_days integer,
