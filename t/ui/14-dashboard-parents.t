@@ -159,6 +159,8 @@ subtest 'filtering subgroups' => sub {
     is($driver->get_current_url, $url, 'URL parameters for filter are correct');
     is(scalar @{$driver->find_elements('opensuse', 'link_text')}, 0, "child group 'opensuse' filtered out");
     isnt(scalar @{$driver->find_elements('opensuse test', 'link_text')}, 0, "child group 'opensuse test' present'");
+    is($driver->find_element('#group1_build13_1-0092 + div .progress-bar-passed', 'css')->get_text(),
+        '2 passed', 'parent-level statistics are still accumulated correctly');
 };
 
 kill_driver();
