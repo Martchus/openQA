@@ -64,6 +64,11 @@ sub find_candidate_needles {
     # ensure the candidates menu is visible
     $driver->find_element('#candidatesMenu')->click();
 
+    require MIME::Base64;
+    print("how the candidates menu looks like:\n");
+    print($driver->screenshot());
+    print("\n");
+
     # read the tags/needles from the HTML strucutre
     my @section_elements = $driver->find_elements('#needlediff_selector ul table');
     my %needles_by_tag   = map {
@@ -271,7 +276,7 @@ sub test_with_error {
         local $/;
         my $fn
           = 't/data/openqa/testresults/00099/00099946-opensuse-13.1-DVD-i586-Build0091-textmode/details-yast2_lan.json';
-        open(my $fh, '<', $fn);
+        ok(open(my $fh, '<', $fn), 'can open JSON file for reading');
         my $details = decode_json(<$fh>);
         close($fh);
         my $detail = $details->[0];
@@ -281,9 +286,12 @@ sub test_with_error {
         if (defined $tags) {
             $detail->{tags} = $tags;
         }
-        open($fh, '>', $fn);
+        ok(open($fh, '>', $fn), 'can open JSON file for writing');
         print $fh encode_json($details);
         close($fh);
+
+        print('before accessing /tests/99946#step/yast2_lan/1, the JSON looks like this: ' . encode_json($details));
+        print("\n");
     }
 
     # check whether candidates are displayed as expected
@@ -303,7 +311,7 @@ subtest 'test candidate list' => sub {
     test_with_error(undef, undef, \@tags, \%expected_candidates, '63%, 52%');
     # notes:
     # - some-other-tag is not in the list because the fixture test isn't looking for it
-    # - this-tag-does-not-exist is in the list because the test is looking it, even though
+    # - this-tag-does-not-exist is in the list because the test is looking for it, even though
     #   no needle with the tag actually exists
 
     $expected_candidates{'sudo-passwordprompt'} = ['68%: sudo-passwordprompt-lxde', '52%: sudo-passwordprompt'];
