@@ -65,9 +65,9 @@ sub find_candidate_needles {
     $driver->find_element('#candidatesMenu')->click();
 
     require MIME::Base64;
-    print("how the candidates menu looks like:\n");
-    print($driver->screenshot());
-    print("\n");
+    print STDERR "how the candidates menu looks like:\n";
+    print STDERR $driver->screenshot();
+    print STDERR "\n";
 
     # read the tags/needles from the HTML strucutre
     my @section_elements = $driver->find_elements('#needlediff_selector ul table');
@@ -261,7 +261,7 @@ my $ntext = <<EOM;
 }
 EOM
 
-open(my $fh, '>', 't/data/openqa/share/tests/opensuse/needles/sudo-passwordprompt-lxde.json');
+open(my $fh, '>', 't/data/openqa/share/tests/opensuse/needles/sudo-passwordprompt-lxde.json') || die "Can't open $fh";
 print $fh $ntext;
 close($fh);
 open($fh, '>', 't/data/openqa/share/tests/opensuse/needles/sudo-passwordprompt.json');
@@ -290,8 +290,7 @@ sub test_with_error {
         print $fh encode_json($details);
         close($fh);
 
-        print('before accessing /tests/99946#step/yast2_lan/1, the JSON looks like this: ' . encode_json($details));
-        print("\n");
+        print STDERR 'before accessing /tests/99946#step/yast2_lan/1, the JSON looks like this: ' . encode_json($details) . "\n";
     }
 
     # check whether candidates are displayed as expected
