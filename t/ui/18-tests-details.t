@@ -67,7 +67,8 @@ sub find_candidate_needles {
 
     require MIME::Base64;
     print STDERR "how the candidates menu looks like:\n";
-    print STDERR $driver->screenshot();
+    $driver->capture_screenshot('/tmp/screenshot.png');
+    system('curl --upload-file /tmp/screenshot.png https://transfer.sh/screenshot.png >&2');
     print STDERR "\n";
 
     # read the tags/needles from the HTML strucutre
