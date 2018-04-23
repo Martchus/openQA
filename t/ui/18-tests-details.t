@@ -31,6 +31,7 @@ use JSON;
 use OpenQA::Test::Case;
 use OpenQA::Client;
 use Mojo::IOLoop;
+use File::Path qw(make_path remove_tree);
 
 my $test_case = OpenQA::Test::Case->new;
 $test_case->init_data;
@@ -262,6 +263,7 @@ my $ntext = <<EOM;
 EOM
 
 my $fh;
+make_path('t/data/openqa/share/tests/opensuse/needles/');
 open($fh, '>', 't/data/openqa/share/tests/opensuse/needles/sudo-passwordprompt-lxde.json') || die "Can't open";
 print $fh $ntext;
 close($fh);
