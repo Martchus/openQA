@@ -261,7 +261,8 @@ my $ntext = <<EOM;
 }
 EOM
 
-open(my $fh, '>', 't/data/openqa/share/tests/opensuse/needles/sudo-passwordprompt-lxde.json') || die "Can't open $fh";
+my $fh;
+open($fh, '>', 't/data/openqa/share/tests/opensuse/needles/sudo-passwordprompt-lxde.json') || die "Can't open";
 print $fh $ntext;
 close($fh);
 open($fh, '>', 't/data/openqa/share/tests/opensuse/needles/sudo-passwordprompt.json');
