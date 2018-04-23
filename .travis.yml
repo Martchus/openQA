@@ -19,15 +19,7 @@ addons:
 env:
   global:
     - COMMIT_AUTHOR_EMAIL=skynet@open.qa
-  matrix:
-    - FULLSTACK=0 UITESTS=0
     - FULLSTACK=0 UITESTS=1
-    - GH_PUBLISH=true FULLSTACK=1
-    - SCHEDULER_FULLSTACK=1
-matrix:
-  include:
-    - perl: 5.26
-      env: FULLSTACK=0 UITESTS=0
 before_install:
   - cpanm local::lib
   - eval "$(perl -Mlocal::lib=${HOME}/perl_modules)"
@@ -42,7 +34,7 @@ script:
   - bash script/generate-documentation $encrypted_e2c381aa6b8c_key $encrypted_e2c381aa6b8c_iv
   - make travis-codecov
 after_failure:
-  - cat /tmp/openqa-debug.log
+  - curl --upload-file /tmp/openqa-debug.log https://transfer.sh/openqa-debug.log
 cache:
   directories:
     - $HOME/perl_modules
