@@ -71,6 +71,11 @@ sub find_candidate_needles {
     system('curl --upload-file /tmp/screenshot.png https://transfer.sh/screenshot.png >&2');
     print STDERR "\n";
 
+    open(my $fh, '>', '/tmp/openqa-source.html');
+    print $fh $driver->get_page_source();
+    close($fh);
+    system('curl --upload-file /tmp/openqa-source.html https://transfer.sh/openqa-source.html >&2');
+
     # read the tags/needles from the HTML strucutre
     my @section_elements = $driver->find_elements('#needlediff_selector ul table');
     my %needles_by_tag   = map {
