@@ -91,7 +91,7 @@ endif
 
 .PHONY: docker-tests
 docker-tests:
-	if test "x$$FULLSTACK" = x1 || test "x$$SCHEDULER_FULLSTACK" = x1; then \
+	if test "x$$FULLSTACK" = x1 || test "x$$SCHEDULER_FULLSTACK" = x1 || test "x$$DEVELOPER_FULLSTACK" = x1; then \
 		git clone https://github.com/os-autoinst/os-autoinst.git ../os-autoinst ;\
 		cd ../os-autoinst ;\
 		cpanm -n --mirror http://no.where/ --installdeps . ;\
@@ -109,14 +109,16 @@ docker-tests:
 	if test "x$$FULLSTACK" = x1; then \
 	  perl t/full-stack.t | tee $$tmp_file;\
 	elif test "x$$SCHEDULER_FULLSTACK" = x1; then \
-		perl t/05-scheduler-full.t | tee $$tmp_file ;\
+	  perl t/05-scheduler-full.t | tee $$tmp_file ;\
+	elif test "x$$DEVELOPER_FULLSTACK" = x1; then \
+	  perl t/33-developer_mode.t ;\
 	else \
 	  list= ;\
 	  if test "x$$UITESTS" = x1; then \
 	    list=$$(find ./t/ui -name *.t | sort ) ;\
 	  else \
 	    $(MAKE) checkstyle ;\
-	    list=$$(find ./t/ -name *.t | grep -v t/ui | sort ) ;\
+	    list=$$(find ./t/ -name '*.t' -not -path './t/ui/*' | sort ) ;\
 	  fi ;\
           prove ${PROVE_ARGS} -r $$list | tee $$tmp_file ;\
 	fi ;\
