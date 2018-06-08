@@ -80,7 +80,7 @@ sub wait_for_result_panel {
         }
         sleep 1;
     }
-    javascript_console_has_no_warnings_or_errors;
+    javascript_console_has_no_warnings_or_errors('', $driver);
     $driver->refresh();
     like($driver->find_element('#result-row .card-body')->get_text(), $result_panel, $desc);
 }
@@ -97,7 +97,7 @@ sub wait_for_developer_console_contains_log_message {
 
     # abort on javascript console errors
     my $js_erro_check_suffix = ', waiting for ' . $diag_info;
-    javascript_console_has_no_warnings_or_errors($js_erro_check_suffix);
+    javascript_console_has_no_warnings_or_errors($js_erro_check_suffix, $driver);
 
     # get log
     my $log_textarea = $driver->find_element('#log');
@@ -116,20 +116,12 @@ sub wait_for_developer_console_contains_log_message {
 
         # try again in 1 second
         sleep 1;
-        wait_for_ajax;
-        javascript_console_has_no_warnings_or_errors($js_erro_check_suffix);
+        wait_for_ajax($driver);
+        javascript_console_has_no_warnings_or_errors($js_erro_check_suffix, $driver);
         $log = $log_textarea->get_text();
     }
 
     pass('found ' . $diag_info);
-}
-
-# kills the specified driver; used to kill a 2nd driver instance
-sub kill_specific_driver {
-    my ($driver) = @_;
-    return unless ($driver);
-    $driver->quit();
-    $driver->shutdown_binary;
 }
 
 1;

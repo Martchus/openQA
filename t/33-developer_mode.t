@@ -202,6 +202,8 @@ sub start_worker {
 start_worker;
 OpenQA::Test::FullstackUtils::wait_for_job_running($driver, 'fail on incomplete');
 
+my $driver2 = start_driver($mojoport, 9516);    # use 'default port + 1 = 9515' for the 2nd chromedriver instance
+
 my $developer_console_url;
 sub open_developer_console_from_live_view {
     # don't just click because it would open a 2nd tab
@@ -253,7 +255,7 @@ subtest 'session locked for other developers' => sub {
         'closed', 'assert never opened');
 };
 
-my $driver2 = start_driver($mojoport);
+#my $driver2 = start_driver($mojoport, 9516); # use 'default port + 1 = 9515' for the 2nd chromedriver instance
 subtest 'connect with 2 clients at the same time (use case: developer opens 2nd tab)' => sub {
     $driver2->get('/login?user=Demo');
     $driver2->get($developer_console_url);
@@ -328,15 +330,15 @@ subtest 'further test execution happens as usual' => sub {
     is($mode, 420, 'exported image has correct permissions (420 -> 0644)');
 };
 
-kill_driver;
 kill_specific_driver($driver2);
+kill_driver;
 turn_down_stack;
 done_testing;
 
 # in case it dies
 END {
-    kill_driver;
     kill_specific_driver($driver2);
+    kill_driver;
     turn_down_stack;
     $? = 0;
 }

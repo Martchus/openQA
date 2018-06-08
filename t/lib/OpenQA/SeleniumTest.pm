@@ -9,8 +9,8 @@ require Mojolicious::Commands;
 require OpenQA::Test::Database;
 
 our @EXPORT = qw($drivermissing check_driver_modules
-  start_driver call_driver kill_driver wait_for_ajax
-  javascript_console_has_no_warnings_or_errors);
+  start_driver call_driver kill_driver kill_specific_driver
+  wait_for_ajax javascript_console_has_no_warnings_or_errors);
 
 use Data::Dump 'pp';
 use Test::More;
@@ -81,48 +81,59 @@ sub start_app {
 }
 
 sub start_driver {
-    my ($mojoport) = @_;
+    my ($mojoport, $custom_port) = @_;
 
     # Connect to it
-    eval {
-        my %opts = (
-            base_url           => "http://localhost:$mojoport/",
-            default_finder     => 'css',
-            webelement_class   => 'Test::Selenium::Remote::WebElement',
-            extra_capabilities => {
-                loggingPrefs  => {browser => 'ALL'},
-                chromeOptions => {args    => []}
-            },
-        );
+    my $driver;
+    #eval {
+    my %opts = (
+        base_url           => "http://localhost:$mojoport/",
+        default_finder     => 'css',
+        webelement_class   => 'Test::Selenium::Remote::WebElement',
+        extra_capabilities => {
+            loggingPrefs  => {browser => 'ALL'},
+            chromeOptions => {args    => []}
+        },
+    );
 
-        # chromedriver is unfortunately hidden on openSUSE
-        my @chromiumdirs = qw(/usr/lib64/chromium);
-        for my $dir (@chromiumdirs) {
-            if (-d $dir) {
-                $ENV{PATH} = "$ENV{PATH}:$dir";
-            }
+    # chromedriver is unfortunately hidden on openSUSE
+    my @chromiumdirs = qw(/usr/lib64/chromium);
+    for my $dir (@chromiumdirs) {
+        if (-d $dir) {
+            $ENV{PATH} = "$ENV{PATH}:$dir";
         }
-        $opts{custom_args} = "--log-path=t/log_chromedriver";
-        unless ($ENV{NOT_HEADLESS}) {
-            push(@{$opts{extra_capabilities}{chromeOptions}{args}}, ('--headless', '--disable-gpu'));
-        }
-        $_driver = Test::Selenium::Chrome->new(%opts);
-        $_driver->set_implicit_wait_timeout(2000);
-        $_driver->set_window_size(600, 800);
-        $_driver->get("http://localhost:$mojoport/");
+    }
+    my $suffix = $custom_port ? '-' . $custom_port : '';
+    $opts{custom_args} = "--log-path=t/log_chromedriver$suffix";
+    $opts{port} = $custom_port if ($custom_port);
+    unless ($ENV{NOT_HEADLESS}) {
+        push(@{$opts{extra_capabilities}{chromeOptions}{args}}, ('--headless', '--disable-gpu'));
+    }
 
-    };
-    die $@ if ($@);
+    print("Starting Selenium::Chrome: $suffix\n");
+    if ($suffix) {
+        sleep 3.5;
+    }
+    $driver = Test::Selenium::Chrome->new(%opts);
+    $driver->set_implicit_wait_timeout(2000);
+    $driver->set_window_size(600, 800);
+    $driver->get("http://localhost:$mojoport/");
+
+    # use the first driver we start by default in functions like make_screenshot()
+    $_driver //= $driver;
+    #};
+    #die $@ if ($@);
 
     return $_driver;
 }
 
 sub make_screenshot($) {
-    my ($fn) = (@_);
+    my ($fn, $driver) = (@_);
+    $driver //= $_driver;
 
     open(my $fh, '>', $fn);
     binmode($fh);
-    my $png_base64 = $_driver->screenshot();
+    my $png_base64 = $driver->screenshot();
     print($fh MIME::Base64::decode_base64($png_base64));
     close($fh);
 }
@@ -145,7 +156,7 @@ sub call_driver {
 
     # return a omjs driver using specified schema hook if modules
     # are available, otherwise return undef
-    return undef unless check_driver_modules;
+    return unless check_driver_modules;
     my ($schema_hook) = @_;
     my $mojoport = start_app($schema_hook);
     return start_driver($mojoport);
@@ -156,17 +167,20 @@ sub _default_check_interval {
 }
 
 sub wait_for_ajax {
-    my $check_interval = _default_check_interval(shift);
-    while (!$_driver->execute_script("return jQuery.active == 0")) {
+    my ($check_interval, $driver) = @_;
+    $check_interval = _default_check_interval($check_interval);
+    $driver //= $_driver;
+    while (!$driver->execute_script("return jQuery.active == 0")) {
         sleep $check_interval;
     }
 }
 
 sub javascript_console_has_no_warnings_or_errors {
-    my ($test_name_suffix) = @_;
+    my ($test_name_suffix, $driver) = @_;
     $test_name_suffix //= '';
+    $driver //= $_driver;
 
-    my $log = $_driver->get_log('browser');
+    my $log = $driver->get_log('browser');
     my @errors;
     for my $log_entry (@$log) {
         my $level = $log_entry->{level};
@@ -193,6 +207,7 @@ sub javascript_console_has_no_warnings_or_errors {
     is_deeply(\@errors, [], 'no errors or warnings on javascript console' . $test_name_suffix);
 }
 
+# kills the first driver instance and the Mojolicious server
 sub kill_driver() {
     return unless $startingpid && $$ == $startingpid;
     if ($_driver) {
@@ -205,6 +220,14 @@ sub kill_driver() {
         waitpid($mojopid, 0);
         $mojopid = undef;
     }
+}
+
+# kills the specified driver; used to kill secondary driver instance
+sub kill_specific_driver {
+    my ($driver) = @_;
+    return unless ($driver);
+    $driver->quit();
+    $driver->shutdown_binary();
 }
 
 sub get_mojoport {
