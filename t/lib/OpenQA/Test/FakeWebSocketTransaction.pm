@@ -16,10 +16,12 @@
 package OpenQA::Test::FakeWebSocketTransaction;
 
 use strict;
+use Test::MockModule;
 use Mojo::Base -base;
 
 has(finish_called => 0);
 has(sent_messages => sub { return []; });
+has(mocked_modules => sub { return []; });
 
 sub clear_messages {
     my ($self) = @_;
@@ -41,6 +43,50 @@ sub finish {
     my ($self) = @_;
     $self->finish_called(1);
     return 1;
+}
+
+sub mock_modules {
+    my ($self, $module_names) = @_;
+
+    for my $module_name (@$module_names) {
+        print("mocking $module_name\n");
+        #my $mock_module = new Test::MockModule($module_name);
+        my $mock_module = new Test::MockModule('Mojo::Transaction::WebSocket');
+        #$mock_module->mock(new => sub {
+        #    print("custom c'tor called\n");
+        #    return $self;
+        #});
+        $mock_module->mock(is_websocket => sub {
+            print("custom is_websocket called\n");
+            return $self->is_websocket();
+        });
+        $mock_module->mock(send => sub {
+            my ($mock_module, $message) = @_;
+            print("custom send called\n");
+            return $self->send($message);
+        });
+        $mock_module->mock(finish => sub {
+            print("custom finish called\n");
+            return $self->finish();
+        });
+        push(@{$self->mocked_modules}, $mock_module);
+    }
+}
+
+sub mock_ws_connection {
+    my ($self) = @_;
+    return $self->mock_modules(['Mojo::Transaction::WebSocket']);
+}
+
+sub unmock_modules {
+    my ($self) = @_;
+
+    print("unmocking modules again\n");
+
+    for my $mock_module (@{$self->mocked_modules}) {
+        $mock_module->unmock_all();
+    }
+    $self->mocked_modules([]);
 }
 
 1;

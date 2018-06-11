@@ -26,7 +26,6 @@ use Mojo::Base -strict;
 use Test::More;
 use Test::Mojo;
 use Test::Warnings;
-use Test::MockObject;
 use OpenQA::Test::Case;
 use OpenQA::Test::FakeWebSocketTransaction;
 use OpenQA::WebAPI::Controller::Developer;
@@ -91,12 +90,18 @@ subtest 'send message to JavaScript clients' => sub {
 
 subtest 'handle messages from JavaScript clients' => sub {
     # create fake java script connection for job 99961
+
+    #use Test::Mock::Class ':all';
+    #mock_class 'Mojo::Transaction::WebSocket' => 'OpenQA::Test::FakeWebSocketTransaction';
+
     my $fake_java_script_tx = OpenQA::Test::FakeWebSocketTransaction->new();
-    OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_java_script_transaction(99961, [$fake_java_script_tx]);
+    $fake_java_script_tx->mock_ws_connection();
+    #OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_java_script_transaction(99961, [$fake_java_script_tx]);
 
     # create fake web socket connection to os-autoinst for job 99961
     my $fake_cmd_srv_tx = OpenQA::Test::FakeWebSocketTransaction->new();
-    OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_cmd_srv_transaction(99961, $fake_cmd_srv_tx);
+    $fake_cmd_srv_tx->mock_ws_connection();
+    #OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_cmd_srv_transaction(99961, $fake_cmd_srv_tx);
 
     # setup a new instance of the live view handler controller using the app from the test
     my $live_view_handler = OpenQA::WebAPI::Controller::LiveViewHandler->new();
@@ -179,8 +184,10 @@ subtest 'handle messages from JavaScript clients' => sub {
     ok($fake_cmd_srv_tx->finish_called,     'connection to os-autoinst closed');
 
     # remove fake transactions
-    OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_java_script_transaction(99961, undef);
-    OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_cmd_srv_transaction(99961, undef);
+    $fake_java_script_tx->unmock_modules();
+    $fake_cmd_srv_tx->unmock_modules();
+    #OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_java_script_transaction(99961, undef);
+    #OpenQA::WebAPI::Controller::LiveViewHandler::set_fake_cmd_srv_transaction(99961, undef);
 };
 
 subtest 'register developer session' => sub {
