@@ -487,11 +487,6 @@ subtest 'Check job status and output' => sub {
     @new_jobs = @{$get->tx->res->json->{jobs}};
     my $running_job_id;
 
-    local $ENV{MOJO_LOG_LEVEL} = 'debug';
-    local $ENV{OPENQA_LOGFILE};
-    local $ENV{OPENQA_WORKER_LOGDIR};
-    $OpenQA::Utils::app->log(Mojo::Log->new(handle => \*STDOUT));
-
     for my $job (@new_jobs) {
         my $worker_id = $job->{assigned_worker_id};
         my $json      = {};
@@ -500,23 +495,13 @@ subtest 'Check job status and output' => sub {
             $running_job_id = $job->{id};
         }
 
-        open(my $oldSTDOUT, ">&", STDOUT) or die "Can't preserve STDOUT\n$!\n";
-        close STDOUT;
-        my $output;
-        open STDOUT, '>', \$output;
-
-
         $post = $t->post_ok("/api/v1/jobs/$job->{id}/status", json => $json);
         $worker_id = 0;
-        close STDOUT;
-        open(STDOUT, '>&', $oldSTDOUT) or die "Can't dup \$oldSTDOUT: $!";
         if ($job->{id} == 99963) {
             $post->status_is(200);
         }
         else {
             $post->status_is(400);
-            ok($output =~ /Got status update for job .*? but does not contain a worker id!/,
-                "Check status update for job $job->{id}");
         }
     }
 
