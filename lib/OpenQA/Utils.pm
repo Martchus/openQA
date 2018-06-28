@@ -819,7 +819,9 @@ sub compose_job_overview_search_args {
     if ($controller->param('failed_modules')) {
         $search_args{failed_modules} = $controller->every_param('failed_modules');
     }
-
+    if ($controller->param('modules')) {
+         $search_args{modules} = $controller->every_param('modules');
+    }
     # add group query params to search args
     # (By 'every_param' we make sure to use multiple values for groupid and
     # group at the same time as a logical or, i.e. all specified groups are
