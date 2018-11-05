@@ -62,6 +62,51 @@ sub schema_hook {
             parent_job_id => 99937,
             dependency    => OpenQA::Schema::Result::JobDependencies::CHAINED,
         });
+
+    # create more jobs for a more complicated example
+    $jobs->create({
+        id       => $_,
+        TEST     => "$_",
+        result   => 'passed',
+        state    => 'done',
+
+    }) for (2000010, 2000016, 2000017, 2000018, 2000019);
+    $dependencies->create(
+        {
+            child_job_id  => 2000018,
+            parent_job_id => 2000016,
+            dependency    => OpenQA::Schema::Result::JobDependencies::PARALLEL,
+        });
+    $dependencies->create(
+        {
+            child_job_id  => 2000019,
+            parent_job_id => 2000016,
+            dependency    => OpenQA::Schema::Result::JobDependencies::PARALLEL,
+        });
+    $dependencies->create(
+        {
+            child_job_id  => 2000018,
+            parent_job_id => 2000017,
+            dependency    => OpenQA::Schema::Result::JobDependencies::PARALLEL,
+        });
+    $dependencies->create(
+        {
+            child_job_id  => 2000017,
+            parent_job_id => 2000010,
+            dependency    => OpenQA::Schema::Result::JobDependencies::CHAINED,
+        });
+    $dependencies->create(
+        {
+            child_job_id  => 2000018,
+            parent_job_id => 2000010,
+            dependency    => OpenQA::Schema::Result::JobDependencies::CHAINED,
+        });
+    $dependencies->create(
+        {
+            child_job_id  => 2000019,
+            parent_job_id => 2000010,
+            dependency    => OpenQA::Schema::Result::JobDependencies::CHAINED,
+        });
 }
 
 my $driver = call_driver(\&schema_hook);
@@ -69,6 +114,9 @@ unless ($driver) {
     plan skip_all => $OpenQA::SeleniumTest::drivermissing;
     exit(0);
 }
+
+$driver->get('/tests/2000019');
+sleep 100000;
 
 sub get_tooltip {
     my ($job_id) = @_;
