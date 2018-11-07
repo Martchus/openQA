@@ -284,70 +284,80 @@ Job dependencies are only resolved when using the iso controller to
 create new jobs from job templates. Posting individual jobs manually
 won't work.
 
-Job dependencies now allow inter-machine dependency that make possible to create job dependencies between tests that are scheduled for the different machine.
+===== Inter-machine dependencies
 
-To use it, simply append machine for each dependent test suite with colon separated.
-If machine isn't explicitly defined, the variable %MACHINE% of the current job is used for dependent test suite.
+Those dependencies make it possible to create job dependencies between tests which are scheduled for the different machines.
 
-E.g. +START_AFTER_TEST="kde:64bit-1G,dhcp-server:64bit-8G"+
+To use it, simply append the machine name for each dependent test suite with colon separated.
+If machine is not explicitly defined, the variable %MACHINE% of the current job is used for the dependent test suite.
+
+Eg.
+
+ START_AFTER_TEST="kde:64bit-1G,dhcp-server:64bit-8G"
+
 or
-E.g. +PARALLEL_WITH="web-server:ipmi-fly,dhcp-server:ipmi-bee",http-server+
 
-Then in job templates, add test suite(s) and all of its dependent test suite(s), keep in mind to place the machine that have explicitly defined in variable for each dependent test suite.
+ PARALLEL_WITH="web-server:ipmi-fly,dhcp-server:ipmi-bee",http-server
 
-Let's see some examples to have better understand.
+Then, in job templates, add test suite(s) and all of its dependent test suite(s). Keep in mind to place the machines which
+have been explicitly defined in a variable for each dependent test suite.
 
-===== Examples:
+Checkout the example sections to get a better understanding:
 
-Correct dependency and machine placed
+====== Example: correct dependency and machine placed
 ----
 There is a test suite A placed on machine 64bit-8G,
 then test suite B placed on machine 64bit-1G with variable START_AFTER_TEST=A:64bit-8G
-
-The dependency works like this:
+----
+This results in the following dependency:
+----
 A:64bit-8G <- B:64bit-1G
 ----
-Best match with correct dependency and machine placed
+
+====== Example: best match with correct dependency and machine placed
 ----
 If test suite A placed on both of machines 64bit and ppc
 then test suite B placed on same machines 64bit and ppc with variable START_AFTER_TEST=A
 openQA take the best matches.
-
-The dependency works like this:
+----
+This results in the following dependency:
+----
 A:64bit <- B:64bit
 A:ppc <- B:ppc
 ----
-Wrong dependency or wrong machine placed
+
+====== Example: wrong dependency or wrong machine placed
 ----
 If test suite A placed on machine 64bit-8G,
 then test suite B placed on machine 64bit-1G with variable START_AFTER_TEST=A
-openQA won't create job dependency and give an error message unless you have explicitly define variable as START_AFTER_TEST=A:64bit-8G
+openQA won't create job dependency and give an error message unless you have been explicitly define variable as START_AFTER_TEST=A:64bit-8G
 
 If test suite A placed on machine ppc, 64bit and s390x
 then there are 3 testsuites B on ppc-1G, C on ppc-2G, D on ppc64le with same variable PARALLEL_WITH=A:ppc
-
-openQA will create dependency for this case:
+----
+This results in the following dependency:
+----
             A:ppc
               ^
            /  |  \
          /    |    \
 B:ppc-1G  C:ppc-2G  D:ppc64le
+----
+openQA will also show errors to inform users that test suite A on machines 64bit and s390x are not necessary.
 
-But also give errors to inform users that test suite A on machines 64bit and s390x are not necessary.
+====== Example: dependency on same machine
 ----
-Dependency on same machine
-----
-If variable START_AFTER_TEST or PARALLEL_WITH with *only* name(s) of test suite(s).
+If variable START_AFTER_TEST or PARALLEL_WITH *only* with name(s) of test suite(s).
 START_AFTER_TEST=A,B or PARALLEL_WITH=A,B
-openQA will create job dependencies that are scheduled on the same machine if all test suites placed on the same machine.
 ----
+openQA will create job dependencies that are scheduled on the same machine if all test suites are placed on the same machine.
 
 ==== OpenQA worker requirements
 
 +CHAINED+ dependency requires only one worker, since dependent jobs will run only after the first one finish.
 On the other hand +PARALLEL+ dependency requires at _least 2 workers_ for simple scenarios.
 
-===== Examples:
+===== Examples
 
 .+CHAINED+ - i.e. test basic functionality before going advanced - requires 1 worker
 ----
