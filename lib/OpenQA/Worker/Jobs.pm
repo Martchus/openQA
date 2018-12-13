@@ -584,7 +584,7 @@ sub start_job {
     my $jobid = $job->{id};
 
     # start updating status - slow updates if livelog is not running
-    add_timer('update_status', STATUS_UPDATES_SLOW, \&update_status);
+    add_timer('update_status', STATUS_UPDATES_SLOW, \&enqueue_result_upload);
     # create job timeout timer
     add_timer(
         'job_timeout',
@@ -649,11 +649,43 @@ sub read_last_screen {
     return {name => $lastscreenshot, png => $png};
 }
 
+sub enqueue_result_upload {
+    if (!$job || !$job->{id}) {
+        log_debug('can not enqueue result download, there is not job');
+        return;
+    }
+
+    if ($update_status_running) {
+        log_debug('skipping enqueuing result upload, already running');
+        return;
+    }
+
+    log_debug('enqueuing result upload');
+    my $client = OpenQA::Worker::Cache::Client->new;
+    my $upload_request = $client->request->upload(
+        id => $job->{id},
+        job => $job,
+    );
+
+    if ($upload_request->enqueue) {
+        $update_status_running = 1;
+        log_debug('result upload enqueued');
+    }
+}
+
 # timer function ignoring arguments
 sub update_status {
     return if $update_status_running;
     $update_status_running = 1;
     log_debug('updating status');
+
+    # TODO: ensure upload task is enqueued instead of calling upload_status()
+    # not sure how to access minion here
+    #my $minion_job_id = $minion->enqueue(upload_results => [$job]);
+    #my $minion_job = $minion->job($minion_job_id);
+    #$minion_job->on(reap => sub {
+        # TODO: handle upload finished
+    #});
     upload_status();
     return;
 }
@@ -688,6 +720,7 @@ sub is_developer_session_started {
 }
 
 # uploads current data
+# TODO: move this to Upload.pm to run it as minion task
 sub upload_status {
     my ($final_upload, $callback) = @_;
 

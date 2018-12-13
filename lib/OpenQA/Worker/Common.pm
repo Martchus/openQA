@@ -347,14 +347,12 @@ sub check_availability {
     # clear previously detected errors (which might be gone)
     $OpenQA::Worker::Common::current_error = undef;
 
-    # check whether the cache service is available if caching enabled
-    if ($worker_settings->{CACHEDIRECTORY}) {
-        if ($OpenQA::Worker::Common::current_error = OpenQA::Worker::Cache::Client->new->availability_error) {
-            log_debug('Worker cache not available: ' . $OpenQA::Worker::Common::current_error);
-        }
-        else {
-            log_debug('Worker cache seems available.');
-        }
+    # check whether the minion service (used for caching and uploading results) is available
+    if ($OpenQA::Worker::Common::current_error = OpenQA::Worker::Cache::Client->new->availability_error) {
+        log_debug('Minion service not available: ' . $OpenQA::Worker::Common::current_error);
+    }
+    else {
+        log_debug('Minion service seems available.');
     }
 }
 

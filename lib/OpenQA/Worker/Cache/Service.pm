@@ -44,6 +44,7 @@ plugin Minion => {SQLite => 'sqlite:' . OpenQA::Worker::Cache->from_worker->db_f
 plugin 'Minion::Admin';
 plugin 'OpenQA::Worker::Cache::Task::Asset';
 plugin 'OpenQA::Worker::Cache::Task::Sync';
+plugin 'OpenQA::Worker::Cache::Task::Upload';
 
 sub SESSION_TOKEN { $_token }
 
