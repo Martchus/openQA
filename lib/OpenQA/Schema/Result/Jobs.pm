@@ -781,21 +781,21 @@ sub cluster_children {
 Clones the job creating a new one with the same settings and linked through
 the 'clone' relationship. This method uses optimistic locking and database
 transactions to ensure that only one clone is created per job. If the job
-already have a job or the creation fails (most likely due to a concurrent
+has already been cloned or the creation fails (most likely due to a concurrent
 duplication detected by the optimistic locking), the method returns undef.
 
 Rules for dependencies cloning are:
 for PARALLEL dependencies:
 - clone parents
- + if parent is clone, find the latest clone and clone it
+ + if parent has already been cloned, find the latest clone and clone it
 - clone children
- + if child is clone, find the latest clone and clone it
+ + if child has already been cloned, find the latest clone and clone it
 
 for CHAINED dependencies:
 - do NOT clone parents
  + create new dependency - duplicit cloning is prevented by ignorelist, webui will show multiple chained deps though
 - clone children
- + if child is clone, find the latest clone and clone it
+ + if child has already been cloned, find the latest clone and clone it
 
 =cut
 sub duplicate {
@@ -832,25 +832,24 @@ sub duplicate {
 
 =back
 
-Handle individual job restart including associated job and asset dependencies. Note that
-the caller is responsible to notify the workers about the new job - the model is not doing that.
-
-I.e.
-    $job->auto_duplicate;
+Handle individual job restart including associated job and asset dependencies.
+The caller is responsible to notify the workers about the job. The model is
+only aborting jobs in the *old* cluster.
 
 =cut
 sub auto_duplicate {
     my ($self, $args) = @_;
     $args //= {};
-    # set this clone was triggered by manually if it's not auto-clone
+
+    # set this clone was triggered manually if it's not auto-clone
     $args->{dup_type_auto} //= 0;
 
     my $clones = $self->duplicate($args);
-
     unless ($clones) {
         log_debug('duplication failed');
         return;
     }
+
     # abort jobs in the old cluster (exclude the original $args->{jobid})
     my $rsource = $self->result_source;
     my $jobs    = $rsource->schema->resultset("Jobs")->search(
@@ -858,7 +857,6 @@ sub auto_duplicate {
             id    => {'!=' => $self->id,    '-in' => [keys %$clones]},
             state => [PRE_EXECUTION_STATES, EXECUTION_STATES],
         });
-
     $jobs->search(
         {
             result => NONE,
@@ -867,7 +865,6 @@ sub auto_duplicate {
         {
             result => PARALLEL_RESTARTED,
         });
-
     while (my $j = $jobs->next) {
         if ($j->worker) {
             log_debug("enqueuing abort for " . $j->id . " " . $j->worker_id);
