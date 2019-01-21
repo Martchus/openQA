@@ -35,16 +35,22 @@ sub new {
     $self->{config}  = undef;
     $self->{client}  = undef;
     $self->{channel} = undef;
+    $self->{url}     = undef;
     return $self;
 }
 
 sub register {
-    my $self = shift;
-    $self->{app}    = shift;
-    $self->{config} = $self->{app}->config;
+    my ($self, $app) = @_;
+
+    # initialize plugin
+    $self->{app}    = $app;
+    $self->{config} = $app->config;
+    $self->{url}    = "$self->{config}->{amqp}{url}?exchange=$self->{config}->{amqp}{exchange}";
+    log_debug("Configured to publish events to $self->{url}");
+
+    # register for events
     Mojo::IOLoop->singleton->next_tick(
         sub {
-            # register for events
             for my $e (@job_events) {
                 OpenQA::Events->singleton->on("openqa_$e" => sub { shift; $self->on_job_event(@_) });
             }
@@ -74,12 +80,11 @@ sub publish_amqp {
     my ($self, $topic, $event_data) = @_;
 
     log_debug("Sending AMQP event: $topic");
-    my $publisher = Mojo::RabbitMQ::Client::Publisher->new(
-        url => $self->{config}->{amqp}{url} . "?exchange=" . $self->{config}->{amqp}{exchange});
+    my $publisher = Mojo::RabbitMQ::Client::Publisher->new(url => $self->{url});
 
-    $publisher->publish_p($event_data, routing_key => $topic)->then(
+    my $res = $publisher->publish_p($event_data, routing_key => $topic)->then(
         sub {
-            log_debug "$topic published";
+            log_debug("$topic published");
         }
     )->catch(
         sub {
