@@ -298,6 +298,7 @@ sub startup {
     $job_r->post('/restart')->name('apiv1_restart')->to('job#restart');
     $job_r->post('/cancel')->name('apiv1_cancel')->to('job#cancel');
     $job_r->post('/duplicate')->name('apiv1_duplicate')->to('job#duplicate');
+    $job_r->post('/trigger_carry_over')->name('apiv1_trigger_carry_over')->to('job#trigger_carry_over');
 
     # api/v1/bugs
     $api_public_r->get('/bugs')->name('apiv1_bugs')->to('bug#list');

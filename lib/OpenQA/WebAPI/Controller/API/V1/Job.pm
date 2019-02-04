@@ -697,6 +697,15 @@ sub duplicate {
     }
 }
 
+sub trigger_carry_over {
+    my ($self) = @_;
+
+    my $jobid = int($self->param('jobid'));
+    my $job   = find_job($self, $self->stash('jobid')) or return;
+    $job->carry_over_bugrefs;
+    $self->render(json => {});
+}
+
 =over 4
 
 =item whoami()
