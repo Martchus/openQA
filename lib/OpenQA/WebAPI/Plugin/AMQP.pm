@@ -105,12 +105,6 @@ sub on_job_event {
     for my $detail (qw(group_id BUILD TEST ARCH MACHINE FLAVOR)) {
         $event_data->{$detail} //= $job->$detail;
     }
-    if ($job->state eq OpenQA::Jobs::Constants::DONE) {
-        my $bugref = $job->bugref;
-        if ($event_data->{bugref} = $bugref) {
-            $event_data->{bugurl} = OpenQA::Utils::bugurl($bugref);
-        }
-    }
     my $job_settings = $job->settings_hash;
     for my $detail (qw(ISO HDD_1)) {
         $event_data->{$detail} //= $job_settings->{$detail} if ($job_settings->{$detail});

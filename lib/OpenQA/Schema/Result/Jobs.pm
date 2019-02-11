@@ -1681,9 +1681,9 @@ sub carry_over_bugrefs {
         # human user?
         $newone{user_id} = $comment->user_id;
         $self->comments->create(\%newone);
-        last;
+        return 1;
     }
-    return;
+    return 0;
 }
 
 sub bugref {
@@ -1818,7 +1818,11 @@ sub done {
     }
 
     # bugrefs are there to mark reasons of failure - the function checks itself though
-    $self->carry_over_bugrefs;
+    my $carry_over_happened = $self->carry_over_bugrefs;
+    if (my $carry_over_result = $args{carry_over_result}) {
+        $$carry_over_result = $carry_over_happened;
+    }
+
     $self->unblock;
 
     return $result;

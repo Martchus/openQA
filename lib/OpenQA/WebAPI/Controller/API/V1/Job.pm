@@ -568,15 +568,26 @@ sub done {
     $newbuild = 1 if defined $self->param('newbuild');
 
     my $res;
+    my $carry_over_res;
     if ($newbuild) {
-        $res = $job->done(result => $result, newbuild => $newbuild);
+        $res = $job->done(result => $result, newbuild => $newbuild, carry_over_result => \$carry_over_res);
     }
     else {
-        $res = $job->done(result => $result);
+        $res = $job->done(result => $result, carry_over_result => \$carry_over_res);
     }
 
-    # use $res as a result, it is recomputed result by scheduler
-    $self->emit_event('openqa_job_done', {id => $job->id, result => $res, newbuild => $newbuild});
+    # emit event
+    my %event_data = (
+        id => $job->id,
+        result => $res, # use $res as a result, it is recomputed result by scheduler
+        newbuild => $newbuild,
+    );
+    my $bugref = $job->bugref;
+    if ($event_data{bugref} = $bugref) {
+        $event_data{bugurl} = OpenQA::Utils::bugurl($bugref);
+        $event_data{bugref_carried_over} = $carry_over_res;
+    }
+    $self->emit_event(openqa_job_done => \%event_data);
 
     # See comment in prio
     $self->render(json => {result => \$res});

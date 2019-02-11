@@ -139,7 +139,7 @@ subtest 'mark job with taken over bugref as done' => sub {
     is(
         $published{'suse.openqa.job.done'},
         '{"ARCH":"x86_64","BUILD":"0091","FLAVOR":"DVD","ISO":"openSUSE-13.1-DVD-x86_64-Build0091-Media.iso",'
-          . '"MACHINE":"64bit","TEST":"kde","bugref":"bsc#123","bugurl":"https://bugzilla.suse.com/show_bug.cgi?id=123",'
+          . '"MACHINE":"64bit","TEST":"kde","bugref":"bsc#123","bugref_carried_over":1,"bugurl":"https://bugzilla.suse.com/show_bug.cgi?id=123",'
           . '"group_id":1001,"id":99963,"newbuild":null,"remaining":3,"result":"failed"}',
         'carried over bugref and resolved URL present in AMQP event'
     );
@@ -151,7 +151,7 @@ subtest 'duplicate and cancel job' => sub {
     is(
         $published{'suse.openqa.job.duplicate'},
         '{"ARCH":"x86_64","BUILD":"666","FLAVOR":"pink","ISO":"whatever.iso","MACHINE":"RainbowPC",'
-          . '"TEST":"rainbow","auto":0,"bugref":null,"group_id":null,"id":'
+          . '"TEST":"rainbow","auto":0,"group_id":null,"id":'
           . $job
           . ',"remaining":1,"result":'
           . $newjob . '}',
