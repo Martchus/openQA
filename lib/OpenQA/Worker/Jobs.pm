@@ -24,7 +24,7 @@ use OpenQA::Worker::Common;
 use OpenQA::Worker::Pool 'clean_pool';
 use OpenQA::Worker::Engines::isotovideo;
 use OpenQA::Utils
-  qw(wait_with_progress log_error log_warning log_debug log_info add_log_channel remove_log_channel get_channel_handle);
+  qw(wait_with_progress log_error log_warning log_debug log_info add_log_channel remove_log_channel get_channel_handle connect_promises);
 use POSIX qw(strftime SIGTERM);
 use File::Copy qw(copy move);
 use File::Path 'remove_tree';
@@ -90,14 +90,15 @@ sub check_job {
 
     $check_job_running->{$host} = 1;
     log_debug("checking for job with webui $host");
-    api_call(
-        'post',
-        "workers/$workerid/grab_job",
-        params   => $worker_caps,
-        host     => $host,
-        callback => sub {
+    return api_call(
+        post   => "workers/$workerid/grab_job",
+        params => $worker_caps,
+        host   => $host
+    )->then(
+        sub {
             my ($res) = @_;
-            return unless ($res);
+            return undef unless $res;
+
             $job = $res->{job};
             if ($job && $job->{id}) {
                 Mojo::IOLoop->next_tick(sub { start_job($host) });
@@ -123,11 +124,11 @@ sub stop_job {
             log_debug("stop_job called while no job was running (reason: $reason)");
         }
         Mojo::IOLoop->stop if $aborted eq 'quit';
-        return;
+        return Mojo::Promise->reject();
     }
 
     # skip if (already) executing a different job
-    return if $job_id && $job_id != $job->{id};
+    return Mojo::Promise->reject() if $job_id && $job_id != $job->{id};
 
     $job_id = $job->{id};
     $host //= $current_host;
@@ -139,17 +140,21 @@ sub stop_job {
     remove_timer('update_status');
     remove_timer('job_timeout');
 
+    # stop job immediately unless status update is running
+    return _stop_job_init($aborted, $job_id, $host) unless ($update_status_running);
+
     # postpone stopping until possibly ongoing status update is concluded
+    my $promise = Mojo::Promise->new;
     my $stop_job_check_status;
     $stop_job_check_status = sub {
         if (!$update_status_running) {
-            _stop_job_init($aborted, $job_id, $host);
-            return undef;
+            return connect_promises($promise, _stop_job_init($aborted, $job_id, $host));
         }
+
         log_debug('postpone stopping until ongoing status update is concluded');
         Mojo::IOLoop->timer(1 => $stop_job_check_status);
     };
-    $stop_job_check_status->();
+    return $promise;
 }
 
 sub verify_job {
@@ -169,12 +174,12 @@ sub _reset_state {
     OpenQA::Events->singleton->emit("stop_job");
 }
 
+# FIXME: it appears that this method is never actually called - get rid of it or is that a bug?
 sub _upload_state {
     my ($job_id, $form) = @_;
     my $ua_url = $hosts->{$current_host}{url}->clone;
     $ua_url->path("jobs/$job_id/upload_state");
-    $hosts->{$current_host}{ua}->post($ua_url => form => $form);
-    return 1;
+    return $hosts->{$current_host}{ua}->post_p($ua_url => form => $form);
 }
 
 sub _multichunk_upload {
@@ -358,16 +363,15 @@ sub _stop_job_init {
 
     if ($aborted eq "scheduler_abort") {
         log_debug('stop_job called by the scheduler. do not send logs');
-        _stop_job_announce(
+        return _stop_job_announce(
             $aborted, $job_id,
             sub {
                 _kill_worker($worker);
                 _reset_state;
             });
-        return;
     }
 
-    api_call(
+    return api_call(
         post => "jobs/$job_id/status",
         json => {
             status => {
@@ -375,58 +379,54 @@ sub _stop_job_init {
                 worker_id => $workerid,
             },
         },
-        callback => sub {
-            _stop_job_announce(
-                $aborted, $job_id,
-                sub {
-                    _stop_job_kill_and_upload($aborted, $job_id, $host);
-                });
-        },
-    );
+    )->finally(
+        sub {
+            return _stop_job_announce($aborted, $job_id);
+        }
+    )->finally(
+        sub {
+            return _stop_job_kill_and_upload($aborted, $job_id, $host);
+        });
 }
 
 sub _stop_job_announce {
-    my ($aborted, $job_id, $callback) = @_;
+    my ($aborted, $job_id) = @_;
 
     # skip if isotovideo not running anymore (e.g. when isotovideo just exited on its own)
     if (!$worker->{child} || !$worker->{child}->is_running) {
-        return $callback->();
+        return Mojo::Promise->resolve();
     }
 
     my $ua      = Mojo::UserAgent->new(request_timeout => 10);
     my $job_url = $job->{URL};
-    return $callback->() unless $job_url;
+    return Mojo::Promise->resolve() unless $job_url;
 
-    try {
-        my $url = "$job_url/broadcast";
-        my $tx  = $ua->build_tx(
-            POST => $url,
-            json => {
-                stopping_test_execution => $aborted,
-            },
-        );
+    my $url = "$job_url/broadcast";
+    my $tx  = $ua->build_tx(
+        POST => $url,
+        json => {
+            stopping_test_execution => $aborted,
+        },
+    );
 
-        log_info('trying to stop job gracefully by announcing it to command server via ' . $url);
-        $ua->start(
-            $tx,
-            sub {
-                my ($ua_from_callback, $tx) = @_;
-                my $keep_ref_to_ua = $ua;
-                my $res            = $tx->res;
+    log_info('trying to stop job gracefully by announcing it to command server via ' . $url);
+    return $ua->start_p($tx)->then(
+        sub {
+            my ($tx)           = @_;
+            my $keep_ref_to_ua = $ua;
+            my $res            = $tx->res;
 
-                if (!$res->is_success) {
-                    log_error('unable to stop the command server gracefully: ');
-                    log_error($res->code ? $res->to_string : 'command server likely not reachable at all');
-                }
-                $callback->();
-            });
-    }
-    catch {
-        log_error('unable to stop the command server gracefully: ' . $_);
+            if (!$res->is_success) {
+                log_error('unable to stop the command server gracefully: ');
+                log_error($res->code ? $res->to_string : 'command server likely not reachable at all');
+                return Mojo::Promise->reject();
+            }
+            return $res;
+        })->catch(sub {
+            my ($reason) = @_;
 
-        # ensure stopping is proceeded (failing announcement is not critical)
-        $callback->();
-    };
+            log_error('unable to stop the command server gracefully: ' . $reason);
+        });
 }
 
 sub _stop_job_kill_and_upload {
@@ -492,7 +492,7 @@ sub _stop_job_kill_and_upload {
             $ofile =~ s/serial0/serial0.txt/;
             $ofile =~ s/virtio_console.log/serial_terminal.txt/;
 
-            my %upload_parameter = (file => {file => "$pooldir/$file", filename => $ofile},);
+            my %upload_parameter = (file => {file => "$pooldir/$file", filename => $ofile});
             if (!upload($job_id, \%upload_parameter)) {
                 $aborted = 'api-failure';
                 last;
@@ -502,19 +502,16 @@ sub _stop_job_kill_and_upload {
         # do final status upload for selected $aborted reasons
         if ($aborted eq 'obsolete') {
             log_debug('setting job ' . $job->{id} . ' to incomplete (obsolete)');
-            upload_status(1, sub { _stop_job_finish({result => 'incomplete', newbuild => 1}) });
-            return;
+            return upload_status(1)->finally(sub { _stop_job_finish({result => 'incomplete', newbuild => 1}) });
         }
         elsif ($aborted eq 'cancel') {
             # not using job_incomplete here to avoid duplicate
             log_debug('setting job ' . $job->{id} . ' to incomplete (cancel)');
-            upload_status(1, sub { _stop_job_finish({result => 'incomplete'}) });
-            return;
+            return upload_status(1)->finally(sub { _stop_job_finish({result => 'incomplete'}) });
         }
         elsif ($aborted eq 'done') {
             log_debug('setting job ' . $job->{id} . ' to done');
-            upload_status(1, \&_stop_job_finish);
-            return;
+            return upload_status(1)->finally(_stop_job_finish());
         }
     }
 
@@ -522,17 +519,16 @@ sub _stop_job_kill_and_upload {
         # give the API one last try to incomplete the job at least
         # note: Setting 'ignore_errors' here is important. Otherwise we would endlessly repeat
         #       that API call.
-        api_call(
+        return api_call(
             post          => "jobs/$job->{id}/set_done",
             params        => {result => 'incomplete'},
             non_critical  => 1,
             ignore_errors => 1,
-            callback      => sub {
+        )->finally(
+            sub {
                 _reset_state;
                 _stop_accepting_jobs_and_register_again($host);
-            },
-        );
-        return;
+            });
     }
 
     if ($aborted eq 'timeout') {
@@ -544,18 +540,16 @@ sub _stop_job_kill_and_upload {
 
     # do final status upload and incomplete job ...
     if ($aborted ne 'quit') {
-        upload_status(1, sub { _stop_job_finish({result => 'incomplete'}, 0) });
-        return;
+        return upload_status(1)->finally(sub { _stop_job_finish({result => 'incomplete'}, 0) });
     }
 
     # ... and duplicate the job before if abort reason is "quit"
     log_debug("duplicating job $job->{id}");
-    api_call(
-        post     => "jobs/$job->{id}/duplicate",
-        params   => {dup_type_auto => 1},
-        callback => sub {
-            upload_status(1, sub { _stop_job_finish({result => 'incomplete'}, 1) });
-        });
+    return api_call(
+        post   => "jobs/$job->{id}/duplicate",
+        params => {dup_type_auto => 1},
+    )->finally(sub { return upload_status(1); })
+      ->finally(sub { return _stop_job_finish({result => 'incomplete'}, 1); });
 }
 
 sub _stop_accepting_jobs_and_register_again {
@@ -573,19 +567,26 @@ sub _stop_job_finish {
     # try again in 1 second if still updating status
     if ($update_status_running) {
         log_debug("waiting for update status running: $update_status_running");
-        add_timer('', 1, sub { _stop_job_finish($params, $quit) }, 1);
-        return;
+        my $promise = Mojo::Promise->new;
+        add_timer(
+            '', 1,
+            sub {
+                return connect_promises($promise, _stop_job_finish($params, $quit));
+            },
+            1
+        );
+        return $promise;
     }
 
-    api_call(
+    return api_call(
         post         => "jobs/$job->{id}/set_done",
         params       => $params,
         non_critical => 1,
-        callback     => sub {
+    )->then(
+        sub {
             _reset_state;
             Mojo::IOLoop->stop if ($quit);
-        },
-    );
+        });
 }
 
 sub copy_job_settings {
@@ -749,18 +750,18 @@ sub is_developer_session_started {
 #       is set to 1. We can't query isotovideo anymore in this case and API calls must be treated
 #       as non-critical to prevent the usual error handling.
 sub upload_status {
-    my ($final_upload, $callback) = @_;
+    my ($final_upload) = @_;
 
     # return if worker has setup failure
-    return unless my $workerid = verify_workerid;
-    return unless $job;
+    return Mojo::Promise->reject() unless my $workerid = verify_workerid;
+    return Mojo::Promise->reject() unless $job;
     if (!$job->{URL}) {
-        return $callback->() if $callback && $final_upload;
-        return;
+        return Mojo::Promise->reject() if $final_upload;
     }
 
     # query status from isotovideo (unless it is the final status upload because isotovideo
     # has already been stopped in this case)
+    # FIXME: make this async using get_p
     my $os_status;
     if (!$final_upload) {
         $os_status = Mojo::UserAgent->new->get($job->{URL} . '/isotovideo/status')->res->json;
@@ -785,8 +786,7 @@ sub upload_status {
             if (!$test_order) {
                 stop_job('no tests scheduled');
                 $update_status_running = 0;
-                return $callback->() if $callback;
-                return;
+                return Mojo::Promise->reject();
             }
             $status->{test_order} = $test_order;
             $status->{backend}    = $os_status->{backend};
@@ -827,65 +827,70 @@ sub upload_status {
     # upload status to web UI
     my $job_id = $job->{id};
     ignore_known_images();
-    if (!$final_upload && is_developer_session_started()) {
-        post_upload_progress_to_liveviewhandler($job_id, $upload_up_to);
-    }
-    api_call(
-        post         => "jobs/$job_id/status",
-        json         => {status => $status},
-        non_critical => $final_upload,
-        callback     => sub {
-            handle_status_upload_finished($final_upload, $job_id, $upload_up_to, $callback, @_);
+
+    return post_upload_progress_to_liveviewhandler($job_id, $upload_up_to)->then(
+        sub {
+            return api_call(
+                post         => "jobs/$job_id/status",
+                json         => {status => $status},
+                non_critical => $final_upload,
+            );
+        }
+    )->then(
+        sub {
+            my ($result) = @_;
+            return handle_status_upload_finished($final_upload, $job_id, $upload_up_to, $result);
+        }
+    )->catch(
+        sub {
+            return handle_status_upload_finished($final_upload, $job_id, $upload_up_to);
         });
-    return 1;
 }
 
 sub handle_status_upload_finished {
-    my ($final_upload, $job_id, $upload_up_to, $callback, $res) = @_;
+    my ($final_upload, $job_id, $upload_up_to, $res) = @_;
 
     # stop if web UI considers this worker already dead
     if (!$res) {
         $update_status_running = 0;
         if ($final_upload) {
             log_error('Unable to make final status update. Maybe the web UI considers this job already dead.');
-            return $callback->() if $callback;
+            return Mojo::Promise->reject();
         }
         else {
             log_error('Aborting job because web UI doesn\'t accept updates anymore (likely considers this job dead)');
-            stop_job('api-failure');
+            return stop_job('api-failure');
         }
-        return;
     }
 
     # continue uploading images
     $known_images = $res->{known_images};
     ignore_known_images();
     # stop if web UI considers this worker already dead
+    # FIXME: make the upload async or use a Minion job
     if (!upload_images()) {
         $update_status_running = 0;
         if ($final_upload) {
             log_error('Unable to make final image uploads. Maybe the web UI considers this job already dead.');
-            return $callback->() if $callback;
+            return Mojo::Promise->reject();
         }
         else {
             log_error(
                 'Aborting job because web UI doesn\'t accept new images anymore (likely considers this job dead)');
-            stop_job('api-failure');
+            return stop_job('api-failure');
         }
-        return;
     }
 
-    if (!$final_upload && is_developer_session_started()) {
-        post_upload_progress_to_liveviewhandler($job_id, $upload_up_to);
-    }
-
-    $update_status_running = 0;
-    return $callback->() if $callback;
-    return;
+    return post_upload_progress_to_liveviewhandler($job_id, $upload_up_to, $final_upload)
+      ->then(sub { $update_status_running = 0; });
 }
 
 sub post_upload_progress_to_liveviewhandler {
-    my ($job_id, $upload_up_to) = @_;
+    my ($job_id, $upload_up_to, $final_upload) = @_;
+
+    if ($final_upload || !is_developer_session_started()) {
+        return Mojo::Promise->resolve();
+    }
 
     my %new_progress_info = (
         upload_up_to                => $upload_up_to,
@@ -904,21 +909,15 @@ sub post_upload_progress_to_liveviewhandler {
             last;
         }
     }
-    return unless $progress_changed;
+    return Mojo::Promise->resolve() unless $progress_changed;
     $progress_info = \%new_progress_info;
 
-    api_call(
+    return api_call(
         post => "/liveviewhandler/api/v1/jobs/$job_id/upload_progress",
         service_port_delta => 2,                # liveviewhandler is supposed to run on web UI port + 2
         json               => $progress_info,
         non_critical       => 1,
-        callback           => sub {
-            my ($res) = @_;
-            if (!$res) {
-                log_error('Failed to post upload progress to liveviewhandler.');
-                return;
-            }
-        });
+    );
 }
 
 sub optimize_image {
@@ -942,7 +941,7 @@ sub ignore_known_images {
 sub upload_images {
     my $tx;
     my $ua_url = $hosts->{$current_host}{url}->clone;
-    $ua_url->path("jobs/" . $job->{id} . "/artefact");
+    $ua_url->path("jobs/$job->{id}/artefact");
 
     my $fileprefix = "$pooldir/testresults";
     while (my ($md5, $file) = each %$tosend_images) {

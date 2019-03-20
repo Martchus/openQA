@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2017 SUSE LLC
+# Copyright (C) 2015-2019 SUSE LLC
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ use Carp;
 use POSIX 'uname';
 use Mojo::URL;
 use OpenQA::Client;
-use OpenQA::Utils qw(log_error log_debug log_warning log_info), qw(feature_scaling rand_range logistic_map_steps);
+use OpenQA::Utils qw(log_error log_debug log_warning log_info feature_scaling rand_range logistic_map_steps connect_promises);
 use Scalar::Util 'looks_like_number';
 use Config::IniFiles;
 use List::Util 'max';
@@ -98,8 +98,10 @@ my $timers = {
 sub add_timer {
     my ($timer, $timeout, $callback, $nonrecurring) = @_;
     die "must specify callback\n" unless $callback && ref $callback eq 'CODE';
+
     # skip if timer already defined, but not if one shot timer (avoid the need to call remove_timer for nonrecurring)
     return if ($timer && $timers->{$timer} && !$nonrecurring);
+
     log_debug("## adding timer $timer $timeout");
     my $timerid;
     if ($nonrecurring) {
@@ -108,6 +110,7 @@ sub add_timer {
     else {
         $timerid = Mojo::IOLoop->recurring($timeout => $callback);
     }
+
   # store timerid for global timers so we can stop them later
   # there are still non-global host related timers, their $timerid is stored in respective $hosts->{$host}{timers} field
     $timers->{$timer} = [$timerid, $callback] if $timer;
@@ -183,11 +186,10 @@ sub api_init {
 sub api_call {
     my ($method, $path, %args) = @_;
 
-    my $host      = $args{host} // $current_host;
-    my $params    = $args{params};
-    my $json_data = $args{json};
-    my $callback  = $args{callback} // sub { };
-    my $tries     = $args{tries} // 3;
+    my $host            = $args{host} // $current_host;
+    my $params          = $args{params};
+    my $json_data       = $args{json};
+    my $remaining_tries = $args{tries} // 3;
 
     # if set ignore errors completely and don't retry
     my $ignore_errors = $args{ignore_errors} // 0;
@@ -195,7 +197,10 @@ sub api_call {
     # if set apply usual error handling (retry attempts) but treat failure as non-critical
     my $non_critical = $args{non_critical} // 0;
 
-    do { OpenQA::Worker::Jobs::_reset_state(); die 'No worker id or webui host set!'; } unless verify_workerid($host);
+    if (!verify_workerid($host)) {
+        OpenQA::Worker::Jobs::_reset_state();
+        die 'No worker ID or web UI host set!';
+    }
 
     # build URL
     $method = uc $method;
@@ -212,76 +217,74 @@ sub api_call {
     }
     log_debug("$method $ua_url");
 
+    # build transaction
     my @args = ($method, $ua_url);
-    if ($json_data) {
-        push @args, 'json', $json_data;
-    }
-
+    push(@args, json => $json_data) if ($json_data);
     my $tx = $ua->build_tx(@args);
-    if ($callback eq "no") {
-        $ua->start($tx);
-        return;
-    }
-    my $cb;
-    $cb = sub {
-        my ($ua, $tx, $tries) = @_;
-        if (!$tx->error && $tx->res->json) {
-            my $res = $tx->res->json;
-            return $callback->($res);
+
+    # define handler with retry-logic
+    my $handle_tx_completed;
+    $handle_tx_completed = sub {
+        my ($tx) = @_;
+
+        my $err = $tx->error;
+        my $json = $tx->res->json;
+        if (!$err && $json) {
+            return Mojo::Promise->resolve($json);
         }
         elsif ($ignore_errors) {
-            return $callback->();
+            return Mojo::Promise->resolve();
         }
 
-        # handle error case
-        --$tries;
-        my $err = $tx->error;
-        my $msg;
+        # handle error
+        --$remaining_tries;
 
-        # format error message for log
-        if ($tx->res && $tx->res->json) {
+        # format error message for log, handle 404 errors
+        my $msg;
+        if ($json) {
             # JSON API might provide error message
-            $msg = $tx->res->json->{error};
+            $msg = $json->{error};
         }
         $msg //= $err->{message};
         if ($err->{code}) {
             $msg = "$err->{code} response: $msg";
-            if ($err->{code} == 404) {
-                # don't retry on 404 errors (in this case we can't expect different
-                # results on further attempts)
-                $tries = 0;
-            }
+            # don't retry on 404 errors (in this case we can't expect different
+            # results on further attempts)
+            $remaining_tries = 0 if ($err->{code} == 404);
         }
         else {
-            $msg = "Connection error: $msg";
+            $msg = "connection error: $msg";
         }
-        log_error($msg . " (remaining tries: $tries)");
+
+        log_error($msg . " (remaining tries: $remaining_tries)");
 
         # handle critical error when no more attempts remain
-        if ($tries <= 0 && !$non_critical) {
+        if ($remaining_tries <= 0 && !$non_critical) {
             # abort the current job, we're in trouble - but keep running to grab the next
             OpenQA::Worker::Jobs::stop_job('api-failure', undef, $host);
-            $callback->();
-            return;
+            return Mojo::Promise->reject();
         }
 
         # handle non-critical error when no more attempts remain
-        if ($tries <= 0) {
-            $callback->();
-            return;
+        if ($remaining_tries <= 0) {
+            return Mojo::Promise->resolve();
         }
 
         # retry in 5 seconds if there are remaining attempts
-        $tx = $ua->build_tx(@args);
+        my $new_tx  = $ua->build_tx(@args);
+        my $promise = Mojo::Promise->new();
         add_timer(
             '', 5,
             sub {
-                $ua->start($tx => sub { $cb->(@_, $tries) });
+                return connect_promises($promise, $ua->start_p($new_tx)->finally($handle_tx_completed));
             },
             1
         );
+
+        return $promise;
     };
-    $ua->start($tx => sub { $cb->(@_, $tries) });
+
+    return $ua->start_p($tx)->finally($handle_tx_completed);
 }
 
 sub _get_capabilities {
@@ -570,13 +573,9 @@ sub register_worker {
 sub update_setup_status {
     my $workerid = verify_workerid();
     my $status   = {setup => 1, worker_id => $workerid};
-    api_call(
-        'post',
-        'jobs/' . $job->{id} . '/status',
-        json     => {status => $status},
-        callback => "no",
-    );
-    log_debug("[Worker#" . $workerid . "] Update status so job '" . $job->{id} . "' is not considered dead.");
+    my $promise  = api_call(post => "jobs/$job->{id}/status", json => {status => $status});
+    log_debug("[Worker#$workerid] Update status so job '$job->{id}' is not considered dead.");
+    return $promise;
 }
 
 sub verify_workerid {

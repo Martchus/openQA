@@ -97,6 +97,7 @@ our @EXPORT  = qw(
   walker
   &ensure_timestamp_appended
   set_listen_address
+  connect_promises
 );
 
 our @EXPORT_OK = qw(determine_web_ui_web_socket_url get_ws_status_only_url);
@@ -1311,6 +1312,11 @@ sub any_array_item_contained_by_hash {
         return 1 if ($hash->{$array_item});
     }
     return 0;
+}
+
+sub connect_promises {
+    my ($parent_promise, $child_promise) = @_;
+    return $child_promise->then(sub { $parent_promise->resolve(@_); }, sub { $parent_promise->reject(@_); });
 }
 
 1;
