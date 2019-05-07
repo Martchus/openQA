@@ -120,10 +120,10 @@
 < javascripts/shapes.js
 
 ! bootstrap.js
-< https://code.jquery.com/jquery-3.3.1.js
+< https://code.jquery.com/jquery-3.4.1.js
 < javascripts/openqa.js
-< https://cdn.datatables.net/1.10.16/js/jquery.dataTables.js
-< https://cdn.datatables.net/1.10.16/js/dataTables.bootstrap4.js
+< https://cdn.datatables.net/1.10.19/js/jquery.dataTables.js
+< https://cdn.datatables.net/1.10.19/js/dataTables.bootstrap4.js
 < http://timeago.yarp.com/jquery.timeago.js
 < javascripts/index.js
 < javascripts/admintable.js
