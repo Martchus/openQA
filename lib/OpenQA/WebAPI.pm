@@ -306,6 +306,10 @@ sub startup {
     $job_r->post('/cancel')->name('apiv1_cancel')->to('job#cancel');
     $job_r->post('/duplicate')->name('apiv1_duplicate')->to('job#duplicate');
 
+    # api/v1/audit_events
+    $api_ra->delete('/audit_events/trigger_cleanup')->name('apiv1_trigger_audit_event_cleanup')
+      ->to('audit_event#trigger_cleanup');
+
     # api/v1/bugs
     $api_public_r->get('/bugs')->name('apiv1_bugs')->to('bug#list');
     $api_ro->post('/bugs')->name('apiv1_create_bug')->to('bug#create');
