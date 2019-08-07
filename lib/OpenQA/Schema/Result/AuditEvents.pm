@@ -47,5 +47,11 @@ __PACKAGE__->add_timestamps;
 __PACKAGE__->set_primary_key('id');
 __PACKAGE__->belongs_to(owner => 'OpenQA::Schema::Result::Users', 'user_id', {join_type => 'left'});
 
+sub sqlt_deploy_hook {
+    my ($self, $table) = @_;
+
+    $table->add_index(name => 'idx_t_created', fields => ['t_created']);
+}
+
 1;
 # vim: set sw=4 et:
