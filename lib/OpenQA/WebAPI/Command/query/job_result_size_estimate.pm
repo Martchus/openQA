@@ -47,10 +47,10 @@ sub _check_job_size {
 
     my $results_dir = $job->result_dir;
     if (!defined $results_dir || !-d $results_dir) {
-        log_debug("Skipping non-existant results dir: $results_dir") if defined $results_dir;
+        print("Skipping non-existant results dir: $results_dir\n") if defined $results_dir;
         return undef;
     }
-    log_info("Checking results dir: $results_dir");
+    print("Checking results dir: $results_dir\n");
     return _getDirSize($results_dir);
 }
 
@@ -76,7 +76,7 @@ sub run {
         $result_size_without_logs += $job_size;
     }
     my $average_result_size_without_logs = $result_size_without_logs / $sample_size;
-    log_info("Average result size without logs: $average_result_size_without_logs");
+    print("Average result size without logs: $average_result_size_without_logs\n");
 
     # pick 1000 random jobs with logs to get average result size with logs
     my $jobs_with_logs = $jobs->search({@query, logs_present => 1}, \%params);
@@ -86,10 +86,10 @@ sub run {
         $result_size_with_logs += $job_size;
     }
     my $average_result_size_with_logs = $result_size_with_logs / $sample_size;
-    log_info("Average result size with logs: $average_result_size_with_logs");
+    print("Average result size with logs: $average_result_size_with_logs\n");
 
     my $average_log_size = ($result_size_with_logs - $result_size_without_logs) / $sample_size;
-    log_info("Average log size: $average_log_size");
+    print("Average log size: $average_log_size\n");
 
     # estimate result dir size by group using average sizes
     my @job_groups_with_size;
