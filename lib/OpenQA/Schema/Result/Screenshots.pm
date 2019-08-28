@@ -42,6 +42,10 @@ __PACKAGE__->add_columns(
         data_type   => 'timestamp',
         is_nullable => 0,
     },
+    link_count => {
+        data_type   => 'integer',
+        is_nullable => 1,
+    },
 );
 __PACKAGE__->set_primary_key('id');
 __PACKAGE__->add_unique_constraint([qw(filename)]);
