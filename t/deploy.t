@@ -29,6 +29,15 @@ use FindBin;
 
 plan skip_all => 'set TEST_PG to e.g. DBI:Pg:dbname=test" to enable this test' unless $ENV{TEST_PG};
 
+# create a minimal Mojo app for deployment
+# note: Loading the regular app with all the plugins does not work when the database is only (partially) initialized.
+{
+    package DeploymentApp;
+    use Mojo::Base 'Mojolicious';
+    has schema => undef;
+}
+my $app = $OpenQA::Utils::app = DeploymentApp->new;
+
 sub redo_schema {
     my $dbh = shift->storage->dbh;
     $dbh->do('SET client_min_messages TO WARNING;');
@@ -38,6 +47,7 @@ sub redo_schema {
 }
 
 my $schema = OpenQA::Schema::connect_db(mode => 'test', check => 0);
+$app->schema($schema);
 redo_schema $schema;
 
 my $dh = DBIx::Class::DeploymentHandler->new(
@@ -60,6 +70,7 @@ is($ret, 2, 'Expected return value (2) for a deployment');
 
 OpenQA::Schema::disconnect_db;
 $schema = OpenQA::Schema::connect_db(mode => 'test', check => 0);
+$app->schema($schema);
 redo_schema $schema;
 
 # redeploy DB to older version and check if deployment_check upgrades the DB
