@@ -377,18 +377,17 @@ sub set_assigned_worker {
 }
 
 sub prepare_for_work {
-    my $self   = shift;
-    my $worker = shift;
-    return unless $worker;
+    my ($self, $worker, $is_follower_in_direct_job_chain) = @_;
+    return undef unless $worker;
+
     log_debug("[Job#" . $self->id . "] Prepare for being processed by worker " . $worker->id);
+
     my $job_hashref = {};
     $job_hashref = $self->to_hash(assets => 1);
 
-    # JOBTOKEN for test access to API
+    # set JOBTOKEN for test access to API
     my $token = random_string();
-    $worker->set_property('JOBTOKEN', $token);
-    #$self->set_property('JOBTOKEN', $token);
-
+    $worker->set_property('JOBTOKEN', $token) unless $is_follower_in_direct_job_chain;
     $job_hashref->{settings}->{JOBTOKEN} = $token;
 
     my $updated_settings = $self->register_assets_from_settings();
@@ -410,7 +409,7 @@ sub prepare_for_work {
     }
 
     # TODO: cleanup previous tmpdir
-    $worker->set_property('WORKER_TMPDIR', tempdir());
+    $worker->set_property('WORKER_TMPDIR', tempdir()) unless $is_follower_in_direct_job_chain;
 
     return $job_hashref;
 }

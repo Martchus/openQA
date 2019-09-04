@@ -135,20 +135,22 @@ sub schedule {
     # assign the allocated job-worker pairs
     for my $allocated (values %$allocated_jobs) {
         # find worker
+        my $worker_id = $allocated->{worker};
         my $worker;
         try {
-            $worker = $schema->resultset('Workers')->find({id => $allocated->{worker}});
+            $worker = $schema->resultset('Workers')->find({id => $worker_id});
         }
         catch {
-            log_debug("Failed to retrieve worker ($allocated->{worker}) in the DB, reason: $_");
+            log_debug("Failed to retrieve worker ($worker_id) in the DB, reason: $_");
         };
         next unless $worker;
-        if ($worker->job) {
-            log_debug "Worker already got a job, skipping";
+        if ($worker->unfinished_jobs->count) {
+            log_debug "Worker already got jobs, skipping";
             next;
         }
 
         # take directly chained jobs into account
+        # note: That these jobs have a matching WORKER_CLASS is enforced on dependency creation.
         my $first_job_id = $allocated->{job};
         my ($directly_chained_job_sequence, $job_ids)
           = _serialize_directly_chained_job_sequence($first_job_id, $scheduled_jobs->{$first_job_id}->{cluster_jobs});
@@ -162,69 +164,89 @@ sub schedule {
         catch {
             log_debug("Failed to retrieve jobs ($job_ids_str) in the DB, reason: $_");
         };
-        next unless @jobs;
         my $actual_job_count = scalar @jobs;
         if ($actual_job_count != scalar @$job_ids) {
             log_debug("Failed to retrieve jobs ($job_ids_str) in the DB, reason: only got $actual_job_count jobs");
             next;
         }
 
-        if ($actual_job_count > 1) {
-            log_debug("Unable to schedule $first_job_id, reason: directly chained dependencies not supported yet");
-            next;
+        # check whether the jobs are still scheduled
+        my $skip = 0;
+        for my $job (@jobs) {
+            my $job_id = $job->id;
+            if ($job->state ne SCHEDULED) {
+                log_debug("Job $job_id no longer scheduled, skipping");
+                $skip = 1;
+                last;
+            }
         }
-        my $job = $jobs[0];
+        next if $skip;
 
-        if ($job->state ne SCHEDULED) {
-            log_debug "Job no longer scheduled, skipping";
-            next;
-        }
         my $res;
         try {
-            $res = $job->ws_send($worker);    # send the job to the worker
+            if ($actual_job_count > 1) {
+                $res
+                  = $self->_assign_multiple_jobs_to_worker(\@jobs, $worker, $directly_chained_job_sequence, $job_ids);
+            }
+            else {
+                $res = $jobs[0]->ws_send($worker);
+            }
             die "Failed contacting websocket server over HTTP" unless ref($res) eq "HASH" && exists $res->{state};
         }
         catch {
             log_debug("Failed to send data to websocket, reason: $_");
         };
 
-        # We succeded dispatching the message
         if (ref($res) eq "HASH" && $res->{state}->{msg_sent} == 1) {
-            log_debug("Sent job '$allocated->{job}' to worker '$allocated->{worker}'");
-            my $scheduled_state;
+            log_debug("Sent job(s) '$job_ids_str' to worker '$worker_id'");
+
+            # associate the worker to the job, so the worker can send updates
             try {
-                # We associate now the worker to the job, so the worker can send updates.
-                if ($job->set_assigned_worker($worker)) {
-                    push(@successfully_allocated, {job => $allocated->{job}, worker => $allocated->{worker}});
+                if ($actual_job_count > 1) {
+                    my %worker_assignment = (
+                        state              => ASSIGNED,
+                        t_started          => undef,
+                        assigned_worker_id => $worker_id,
+                    );
+                    $_->update(\%worker_assignment) for @jobs;
+                    $worker->update({job_id => $first_job_id});
+                    # note: The job_id column of the workers table is updated as soon as the worker progresses
+                    #       to the next job so the actually current job and current module can be displayed.
                 }
                 else {
-                    # Send abort and reschedule if we fail associating the job to the worker
-                    die "Failed rollback of job" unless $job->reschedule_rollback($worker);
+                    if ($jobs[0]->set_assigned_worker($worker)) {
+                        push(@successfully_allocated, {job => $first_job_id, worker => $worker_id});
+                    }
+                    else {
+                        # Send abort and reschedule if we fail associating the job to the worker
+                        die "Failed rollback of job" unless $jobs[0]->reschedule_rollback($worker);
+                    }
                 }
             }
             catch {
                 log_debug("Failed to set worker in scheduling state, reason: $_");
             };
-
         }
         else {
-            log_debug("Failed sending job '$allocated->{job}' to worker '$allocated->{worker}'");
-
+            # reset worker and jobs on failure
+            log_debug("Failed sending job(s) '$job_ids_str' to worker '$worker_id'");
             try {
                 $worker->unprepare_for_work;
             }
             catch {
-                log_debug("Failed resetting unprepare worker :( bummer! Reason: $_");
+                log_debug("Failed resetting unprepare worker, reason: $_");
             };
-
-            try {
-                # Remove the associated worker and be sure to be in scheduled state.
-                die "Failed reset" unless $job->reschedule_state;
+            for my $job (@jobs) {
+                try {
+                    # Remove the associated worker and be sure to be in scheduled state.
+                    die "failed reset" unless $job->reschedule_state;
+                }
+                catch {
+                    # Again: If we see this, we are in a really bad state.
+                    my $job_id = $job->id;
+                    log_debug("Failed resetting job '$job_id' to scheduled state, reason: $_");
+                };
             }
-            catch {
-                # Again: If we see this, we are in a really bad state.
-                log_debug("Failed resetting job '$allocated->{id}' to scheduled state :( bummer! Reason: $_");
-            };
         }
     }
 
@@ -404,6 +426,28 @@ sub _serialize_directly_chained_job_sub_sequence {
         push(@$output_array, scalar @$sub_sequence > 1 ? $sub_sequence : $sub_sequence->[0]) if @$sub_sequence;
     }
     return $output_array;
+}
+
+sub _assign_multiple_jobs_to_worker {
+    my ($self, $jobs, $worker, $directly_chained_job_sequence, $job_ids) = @_;
+
+    # prepare job data for the worker
+    my $worker_id = $worker->id;
+    my %job_data;
+    my %job_info = (
+        ids                => $job_ids,
+        data               => \%job_data,
+        sequence           => $directly_chained_job_sequence,
+        assigned_worker_id => $worker_id,
+    );
+    my $first_job = $directly_chained_job_sequence->[0];
+    for my $job (@$jobs) {
+        my $job_id   = $job->id;
+        my $job_data = $job->prepare_for_work($worker, $job_id ne $first_job);
+        $job_data{$job_id} = $job_data;
+    }
+
+    return OpenQA::WebSockets::Client->singleton->send_jobs(\%job_info);
 }
 
 1;

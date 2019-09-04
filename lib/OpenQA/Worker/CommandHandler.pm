@@ -130,30 +130,74 @@ sub _handle_command_developer_session_start {
     $current_job->developer_session_running(1);
 }
 
-sub _handle_command_grab_job {
-    my ($json, $client, $worker, $webui_host, $current_job) = @_;
+sub _can_grab_job {
+    my ($worker, $webui_host, $current_job) = @_;
 
     # refuse new if worker is in error state (this will leave the job to be grabbed in assigned state)
     if (my $current_error = $worker->current_error) {
         log_debug("Refusing 'grab_job', we are currently unable to do any work: $current_error");
-        return undef;
+        return 0;
     }
 
-    my $job_info = $json->{job};
-    if (!$job_info || ref($job_info) ne 'HASH' || !defined $job_info->{id} || !$job_info->{settings}) {
-        log_error("Refusing to grab job from $webui_host because the provided job is invalid: " . pp($job_info));
-        return undef;
-    }
-
+    # prevent enqueuing new jobs if not idling; multiple jobs need to be enqueued at once
+    my $current_webui_host = $worker->current_webui_host;
     if ($current_job) {
-        my $current_job_id     = $current_job->id // 'another job';
-        my $current_webui_host = $worker->current_webui_host;
+        my $current_job_id = $current_job->id // 'another job';
         log_warning(
             "Refusing to grab job from $webui_host, already busy with $current_job_id from $current_webui_host");
+        return 0;
+    }
+    if ($worker->has_pending_jobs) {
+        log_warning("Refusing to grab job from $webui_host, there are still pending jobs from $current_webui_host");
+        return 0;
+    }
+
+    return 1;
+}
+
+sub _can_accept_job {
+    my ($webui_host, $job_info) = @_;
+
+    if (!$job_info || ref($job_info) ne 'HASH' || !defined $job_info->{id} || !$job_info->{settings}) {
+        log_error("Refusing to grab job from $webui_host because the provided job is invalid: " . pp($job_info));
+        return 0;
+    }
+
+    return 1;
+}
+
+sub _handle_command_grab_job {
+    my ($json, $client, $worker, $webui_host, $current_job) = @_;
+
+    my $job_info = $json->{job};
+    return undef unless _can_grab_job($worker, $webui_host, $current_job);
+    return undef unless _can_accept_job($webui_host, $job_info);
+
+    $worker->accept_job($client, $job_info);
+}
+
+sub _handle_command_grab_jobs {
+    my ($json, $client, $worker, $webui_host, $current_job) = @_;
+
+    return undef unless _can_grab_job($worker, $webui_host, $current_job);
+
+    my $job_info     = $json;
+    my $job_data     = $json->{data};
+    my $job_sequence = $json->{sequence};
+    if (ref($job_data) ne 'HASH' || ref($job_sequence) ne 'ARRAY') {
+        log_error(
+            "Refusing to grab job from $webui_host because the provided job info lacks job data or execution sequence: "
+              . pp($job_info));
         return undef;
     }
 
-    $worker->accept_job($client, $job_info);
+    for my $job_id (keys %$job_data) {
+        return undef unless _can_accept_job($webui_host, $job_data->{$job_id});
+    }
+
+    # FIXME: validate whether there's a job info for each job ID in the sequence
+
+    $worker->enqueue_jobs($client, $job_info);
 }
 
 sub _handle_command_incompatible {

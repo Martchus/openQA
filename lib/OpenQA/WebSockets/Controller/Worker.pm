@@ -93,8 +93,20 @@ sub _message {
 
     $worker->{last_seen} = time();
     if ($json->{type} eq 'accepted') {
-        my $jobid = $json->{jobid};
-        log_debug("Worker: $worker->{id} accepted job $jobid");
+        my $job_id = $json->{jobid};
+        return undef unless $job_id;
+
+        # verify whether the job has previously been assigned to the worker and can actually be accepted
+        my $job = $worker->{db}->unfinished_jobs->find($job_id);
+        if (!$job) {
+            log_warning(
+                "Worker: $worker->{id} accepted job $job_id which was never assigned to it or has already finished");
+            return undef;
+        }
+
+        # update the worker's current job
+        $worker->{db}->update({job_id => $job_id});
+        log_debug("Worker: $worker->{id} accepted job $job_id");
     }
     elsif ($json->{type} eq 'status') {
         # handle job status update through web socket
