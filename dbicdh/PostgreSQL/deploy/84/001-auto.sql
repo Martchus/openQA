@@ -1,6 +1,6 @@
 -- 
 -- Created by SQL::Translator::Producer::PostgreSQL
--- Created on Tue Nov 26 17:16:45 2019
+-- Created on Thu Nov 28 11:07:42 2019
 -- 
 ;
 --
@@ -47,7 +47,7 @@ CREATE INDEX gru_tasks_run_at_reversed on gru_tasks (run_at DESC);
 CREATE TABLE job_group_parents (
   id serial NOT NULL,
   name text NOT NULL,
-  default_size_limit_gb integer,
+  size_limit_gb integer,
   exclusively_kept_asset_size bigint,
   default_keep_logs_in_days integer,
   default_keep_important_logs_in_days integer,
