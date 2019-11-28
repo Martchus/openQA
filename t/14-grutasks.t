@@ -84,6 +84,10 @@ $assets_mock->mock(refresh_assets            => sub { });
 
 my $t = Test::Mojo->new('OpenQA::WebAPI');
 
+# define a fix asset_size_limit configuration for this test to be independent of the default value
+# we possibly want to adjust without going into the details of this test
+$t->app->config->{default_group_limits}->{asset_size_limit} = 100;
+
 # Allow Devel::Cover to collect stats for background jobs
 $t->app->minion->on(
     worker => sub {
