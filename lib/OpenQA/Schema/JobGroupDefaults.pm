@@ -19,7 +19,7 @@ use strict;
 use warnings;
 
 use constant {
-    SIZE_LIMIT_GB                  => 100,
+    SIZE_LIMIT_GB                  => 250,
     KEEP_LOGS_IN_DAYS              => 30,
     KEEP_IMPORTANT_LOGS_IN_DAYS    => 120,
     KEEP_RESULTS_IN_DAYS           => 365,

@@ -388,7 +388,7 @@ subtest 'job property editor' => sub() {
 
     subtest 'current/default values present' => sub() {
         is($driver->find_element_by_id('editor-name')->get_value(),              'Cool Group', 'name');
-        is($driver->find_element_by_id('editor-size-limit')->get_value(),        '100',        'size limit');
+        is($driver->find_element_by_id('editor-size-limit')->get_value(),        '250',        'size limit');
         is($driver->find_element_by_id('editor-keep-logs-in-days')->get_value(), '30',         'keep logs in days');
         is($driver->find_element_by_id('editor-keep-important-logs-in-days')->get_value(),
             '120', 'keep important logs in days');
@@ -642,7 +642,7 @@ subtest 'asset list' => sub {
     }
     is_deeply(
         \@assets_by_group,
-        ["opensuse test\n16 byte / 100 GiB", "opensuse\n16 byte / 100 GiB"],
+        ["opensuse test\n16 byte / 250 GiB", "opensuse\n16 byte / 250 GiB"],
         'groups of "assets by group"'
     );
     $driver->click_element_ok('#group-1001-checkbox + label', 'css');
