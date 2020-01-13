@@ -95,6 +95,7 @@ div.flags {
 .fa.result_parallel_restarted { color: $color-module-none; }
 .fa.result_passed, .fa.result_ok { color: $color-module-passed !important; }
 .fa.result_skipped { color: $color-module-none; }
+.fa.result_aborted { color: $color-module-none; }
 .fa.result_softfailed, .fa.result_softfail { color: $color-softfailed; }
 .fa.result_unknown { color:$color-warning; }
 .fa.result_user_cancelled { color: $color-module-none; }

@@ -119,7 +119,7 @@ sub check_test_parent {
             "failed: 1\ntotal: 1",
             "softfailed: 2\nfailed: 1\ntotal: 3",
             "passed: 1\ntotal: 1",
-            "passed: 2\nunfinished: 3\nskipped: 1\ntotal: 6",
+            "passed: 2\nunfinished: 3\naborted: 1\ntotal: 6",
         ],
         'parent-level progress bars are accumulated'
     );
@@ -131,7 +131,7 @@ sub check_test_parent {
       ->each;
     is_deeply(
         \@progress_bars,
-        ["passed: 2\nunfinished: 2\nskipped: 1\ntotal: 5", "unfinished: 1\ntotal: 1"],
+        ["passed: 2\nunfinished: 2\naborted: 1\ntotal: 5", "unfinished: 1\ntotal: 1"],
         'progress bars for child groups shown correctly'
     );
 

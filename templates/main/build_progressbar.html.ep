@@ -3,5 +3,5 @@
     %= build_progress_bar_section(unfinished => $result->{unfinished}, $max_jobs, 'progress-bar-striped')
     %= build_progress_bar_section(softfailed => $result->{softfailed}, $max_jobs)
     %= build_progress_bar_section(failed => $result->{failed}, $max_jobs)
-    %= build_progress_bar_section(skipped => $result->{skipped}, $max_jobs)
+    %= build_progress_bar_section(aborted => $result->{skipped}, $max_jobs)
 </div>

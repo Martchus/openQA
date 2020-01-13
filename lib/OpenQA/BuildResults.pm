@@ -37,7 +37,7 @@ sub init_job_figures {
     $job_result->{unfinished} = 0;
     $job_result->{labeled}    = 0;
     $job_result->{softfailed} = 0;
-    $job_result->{skipped}    = 0;
+    $job_result->{aborted}    = 0;
     $job_result->{total}      = 0;
 }
 
@@ -55,7 +55,7 @@ sub count_job {
             return;
         }
         if (grep { $job->result eq $_ } OpenQA::Jobs::Constants::ABORTED_RESULTS) {
-            $jr->{skipped}++;
+            $jr->{aborted}++;
             return;
         }
         if (grep { $job->result eq $_ } OpenQA::Jobs::Constants::NOT_OK_RESULTS) {
@@ -63,10 +63,9 @@ sub count_job {
             $jr->{labeled}++ if $labels->{$job->id};
             return;
         }
-        # note: Incompletes and timeouts are accounted to both categories - failed and skipped.
     }
     if ($job->state eq OpenQA::Jobs::Constants::CANCELLED) {
-        $jr->{skipped}++;
+        $jr->{aborted}++;
         return;
     }
     my $state = $job->state;

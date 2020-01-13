@@ -320,7 +320,7 @@ sub register {
     $app->helper(
         build_progress_bar_title => sub {
             my ($c, $res) = @_;
-            my @keys = qw(passed unfinished softfailed failed skipped total);
+            my @keys = qw(passed unfinished softfailed failed aborted total);
             return join("\n", map("$_: $res->{$_}", grep($res->{$_}, @keys)));
         });
 

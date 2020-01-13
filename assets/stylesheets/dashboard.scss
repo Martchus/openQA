@@ -38,7 +38,7 @@ td div.progress {
         background-color: $color-failed;
         color: white;
     }
-    .progress-bar-skipped {
+    .progress-bar-aborted {
         background-color: lighten($color-state-cancelled, 12.5%);
         color: white;
     }
