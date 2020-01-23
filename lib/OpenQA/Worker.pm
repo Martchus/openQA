@@ -527,6 +527,11 @@ sub kill {
     Mojo::IOLoop->stop;
 }
 
+sub shall_terminate {
+    my ($self) = @_;
+    return $self->{_shall_terminate};
+}
+
 sub is_stopping {
     my ($self) = @_;
 

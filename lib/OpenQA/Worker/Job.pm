@@ -636,6 +636,16 @@ sub _calculate_upload_results_interval {
     return $interval;
 }
 
+sub _handle_upload_interrupted {
+    my ($self, $callback) = @_;
+    return 0 unless $self->worker->shall_terminate;
+
+    log_warning('Upload has been interrupted');
+    $self->emit(uploading_results_concluded => {});
+    Mojo::IOLoop->next_tick($callback);
+    return 1;
+}
+
 sub _upload_results {
     my ($self, $callback) = @_;
 
@@ -666,6 +676,7 @@ sub _upload_results {
 
 sub _upload_results_step_0_prepare {
     my ($self, $is_final_upload, $callback) = @_;
+    return undef if $self->_handle_upload_interrupted;
 
     my $worker_id       = $self->client->worker_id;
     my $job_url         = $self->isotovideo_client->url;
@@ -749,12 +760,15 @@ sub _upload_results_step_0_prepare {
     # mark the currently running test as running
     $status{result}->{$current_test_module}->{result} = 'running' if ($current_test_module);
 
+    return undef if $self->_handle_upload_interrupted;
+
     # define steps for uploading status to web UI
     return $self->_upload_results_step_1_post_status(
         \%status,
         $is_final_upload,
         sub {
             my ($status_post_res) = @_;
+            return undef if $self->_handle_upload_interrupted;
 
             # handle error occurred when posting the status
             if (!$status_post_res) {
@@ -813,6 +827,7 @@ sub _upload_results_step_1_post_status {
 
 sub _upload_results_step_2_upload_images {
     my ($self, $callback) = @_;
+    return undef if $self->_handle_upload_interrupted;
 
     Mojo::IOLoop->subprocess(
         sub {
@@ -874,6 +889,7 @@ sub _upload_results_step_2_upload_images {
 
 sub _upload_results_step_3_finalize {
     my ($self, $is_final_upload, $callback) = @_;
+    return undef if $self->_handle_upload_interrupted;
 
     # continue sending status updates
     unless ($is_final_upload) {
