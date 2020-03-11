@@ -222,13 +222,6 @@ sub _message {
                 && OpenQA::Jobs::Constants::meta_state($current_job_state) eq OpenQA::Jobs::Constants::EXECUTION)
               && (scalar @unfinished_jobs <= 1);
 
-            # give worker a second chance to process the job assignment
-            # possible situation on the worker: The worker might be sending a status update claiming it is
-            # idle (or has doing that task piled up on the event loop). At the same time a job arrives. The
-            # message regarding that job will be processed after sending the idle status. So let's give the
-            # worker another change to process the message about its assigned job.
-            return undef unless $worker_previously_idle;
-
             log_debug("Rescheduling jobs assigned to worker $worker_id");
             $worker->reschedule_assigned_jobs([$current_job, @unfinished_jobs]);
         }

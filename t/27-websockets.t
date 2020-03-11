@@ -222,18 +222,8 @@ subtest 'web socket message handling' => sub {
             qr/Received.*worker_status message.*Updating seen of worker 1 from worker_status/s,
             'update logged'
         );
-        is($workers->find($worker_id)->error,  undef,            'broken status unset');
-        is($status->{$worker_id}->{idle},      1,                'the first idle message has been remarked');
-        is($workers->find($worker_id)->job_id, $assigned_job_id, 'but job assignment has not been removed yet');
-        combined_like(
-            sub {
-                $t->send_ok({json => {type => 'worker_status', status => 'idle'}});
-                $t->message_ok('message received');
-            },
-            qr/Rescheduling jobs assigned to worker $worker_id/s,
-            'rescheduling logged'
-        );
-        is($workers->find($worker_id)->job_id,   undef,     'job assignment removed on 2nd idle status');
+        is($workers->find($worker_id)->error,    undef,     'broken status unset');
+        is($workers->find($worker_id)->job_id,   undef,     'job assignment removed');
         is($jobs->find($assigned_job_id)->state, SCHEDULED, 'job set back to scheduled');
     };
 
