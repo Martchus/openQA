@@ -1241,15 +1241,24 @@ sub store_image {
     my ($self, $asset, $md5, $thumb) = @_;
 
     my ($storepath, $thumbpath) = OpenQA::Utils::image_md5_filename($md5);
-    $storepath = $thumbpath if ($thumb);
-    my $prefixdir = dirname($storepath);
-    File::Path::make_path($prefixdir);
+    $storepath = $thumbpath if $thumb;
+    my $image_already_exists = -e $storepath;
+    File::Path::make_path(dirname($storepath));
     $asset->move_to($storepath);
+
+    my $dbpath = OpenQA::Utils::image_md5_filename($md5, 1);
+    my $schema = $self->result_source->schema;
+    #if ($image_already_exists) {
+    #
+    #}
+    #my $sth = $schema->storage->dbh->prepare(
+    #    "select count(screenshot_id) from screenshot_links join screenshots on screenshot_id = screenshots.id where job_id = ? and filename = ? group by #screenshot_id;");
+    #$sth->execute($self->id, $dbpath);
+
     $self->account_result_size($asset->size);
 
     if (!$thumb) {
-        my $dbpath = OpenQA::Utils::image_md5_filename($md5, 1);
-        $self->result_source->schema->resultset('Screenshots')->create_screenshot($dbpath);
+        $schema->resultset('Screenshots')->create_screenshot($dbpath);
         log_debug("store_image: $storepath");
     }
     return $storepath;
