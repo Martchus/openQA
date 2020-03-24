@@ -299,6 +299,34 @@ subtest 'upload screenshot' => sub {
     ok(-e $rp, 'screenshot exists')
       and is($jobs->find(99963)->result_size, $expected_result_size += -s $rp, 'screenshot size taken into account');
     is(calculate_file_md5($rp), '347da661d0c3faf37d49d33b6fc308f2', 'md5sum matches');
+
+    my $screenshot2 = "$tempdir/openqa/images/b55/ee3/9210b09580f1e582e9c45608b2.png";
+    $t->post_ok(
+        '/api/v1/jobs/99963/artefact?image=1&md5=b55ee39210b09580f1e582e9c45608b2' => form => {
+            file => {
+                file =>
+'t/testresults/00099/00099937-opensuse-13.1-DVD-i586-Build0091-kde/consoletest_finish-5-reboot_after_install-131M4-diff2.png',
+                filename => 'tar.png'
+            }})->status_is(200);
+    $t->content_is('OK');
+    ok(-e $screenshot2, '2nd screenshot exists')
+      and is(
+        $jobs->find(99963)->result_size,
+        $expected_result_size += -s $screenshot2,
+        'size of different screenshot taken into account'
+      );
+    is(calculate_file_md5($screenshot2), 'b55ee39210b09580f1e582e9c45608b2', 'md5sum matches');
+
+    $t->post_ok(
+        '/api/v1/jobs/99963/artefact?image=1&md5=347da661d0c3faf37d49d33b6fc308f2' => form => {
+            file => {
+                file     => 't/images/347/da6/61d0c3faf37d49d33b6fc308f2.png',
+                filename => 'bar.png'
+            }})->status_is(200);
+    $t->content_is('OK');
+    ok(-e $rp, 'screenshot exists')
+      and is($jobs->find(99963)->result_size,
+        $expected_result_size, 'screenshot size for same screenshot not taken into account twice');
 };
 
 subtest 'upload asset: fails without chunks' => sub {
