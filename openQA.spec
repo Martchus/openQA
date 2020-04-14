@@ -1,7 +1,7 @@
 #
 # spec file for package openQA
 #
-# Copyright (c) 2018-2019 SUSE LLC
+# Copyright (c) 2018-2020 SUSE LLC
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -521,6 +521,7 @@ fi
 %{_datadir}/openqa/script/openqa-clone-job
 %{_datadir}/openqa/script/openqa-clone-custom-git-refspec
 %{_datadir}/openqa/script/openqa-validate-yaml
+%{_datadir}/openqa/script/openqa-cli
 %{_datadir}/openqa/script/configure-web-proxy
 %dir %{_datadir}/openqa/lib
 %{_datadir}/openqa/lib/OpenQA/Client.pm
