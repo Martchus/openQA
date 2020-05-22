@@ -64,6 +64,14 @@ __PACKAGE__->add_columns(
         data_type   => 'integer',
         is_nullable => 1,
     },
+    keep_video_in_days => {
+        data_type   => 'integer',
+        is_nullable => 1,
+    },
+    keep_important_video_in_days => {
+        data_type   => 'integer',
+        is_nullable => 1,
+    },
     keep_results_in_days => {
         data_type   => 'integer',
         is_nullable => 1,
@@ -142,6 +150,16 @@ around 'keep_logs_in_days' => sub {
 around 'keep_important_logs_in_days' => sub {
     my ($orig, $self) = @_;
     return $self->_get_column_or_default('keep_important_logs_in_days', 'important_log_storage_duration');
+};
+
+around 'keep_video_in_days' => sub {
+    my ($orig, $self) = @_;
+    return $self->_get_column_or_default('keep_video_in_days', 'video_storage_duration');
+};
+
+around 'keep_important_video_in_days' => sub {
+    my ($orig, $self) = @_;
+    return $self->_get_column_or_default('keep_important_video_in_days', 'important_video_storage_duration');
 };
 
 around 'keep_results_in_days' => sub {
