@@ -441,7 +441,7 @@ sub _accept_or_skip_next_job_in_queue {
                 log_info("Skipping job $job_id from queue because worker is broken ($current_error)");
             }
             else {
-                log_info("Skipping job $job_id from queue (parent faild with result $last_job_exit_status)");
+                log_info("Skipping job $job_id from queue (parent failed with result $last_job_exit_status)");
             }
             $self->_prepare_job_execution($job_to_skip, only_skipping => 1);
             return $job_to_skip->skip;
