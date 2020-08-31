@@ -340,7 +340,7 @@ sub reschedule_state {
 
     # free the worker
     if (my $worker = $self->worker) {
-        $self->worker->update({job_id => undef});
+        $worker->update({job_id => undef, t_updated => $worker->t_updated});
     }
 }
 

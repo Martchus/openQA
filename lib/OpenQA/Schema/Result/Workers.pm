@@ -182,7 +182,7 @@ sub unprepare_for_work {
     my $self = shift;
 
     $self->delete_properties([qw(JOBTOKEN WORKER_TMPDIR)]);
-    $self->update({upload_progress => undef});
+    $self->update({upload_progress => undef, t_updated => $self->t_updated});
 
     return $self;
 }
@@ -258,9 +258,19 @@ sub unfinished_jobs {
     return $self->previous_jobs->search({t_finished => undef});
 }
 
+#sub get_timestamp {
+#    my ($self, @args) = @_;
+#    return $self->{_timestamp} || $self->SUPER::get_timestamp(@args);
+#}
+#
+#sub keep_timestamp {
+#    my ($self) = @_;
+#    $self->{_timestamp} = '';
+#}
+
 sub set_current_job {
     my ($self, $job) = @_;
-    $self->update({job_id => $job->id});
+    $self->update({job_id => $job->id, t_updated => 0});
 }
 
 sub reschedule_assigned_jobs {
