@@ -21,7 +21,7 @@ use lib "$FindBin::Bin/lib";
 use OpenQA::Scheduler::Model::Jobs;
 use OpenQA::Resource::Locks;
 use OpenQA::Resource::Jobs;
-use OpenQA::Constants 'WEBSOCKET_API_VERSION';
+use OpenQA::Constants qw(WEBSOCKET_API_VERSION DB_TIMESTAMP_ACCURACY);
 use OpenQA::Jobs::Constants;
 use OpenQA::Test::Database;
 use OpenQA::Utils 'assetdir';
@@ -35,9 +35,11 @@ use OpenQA::WebAPI::Controller::API::V1::Worker;
 # Mangle worker websocket send, and record what was sent
 my $mock_result = Test::MockModule->new('OpenQA::Schema::Result::Jobs');
 my $sent        = {};
+my $ws_send_error;
 $mock_result->redefine(
     ws_send => sub {
         my ($self, $worker) = @_;
+        die $ws_send_error if defined $ws_send_error;
         my $hashref = $self->prepare_for_work($worker);
         $hashref->{assigned_worker_id} = $worker->id;
         $sent->{$worker->id} = {worker => $worker, job => $self};
@@ -98,6 +100,7 @@ is_deeply($current_jobs, [], 'assert database has no jobs to start with')
   or BAIL_OUT('database not properly initialized');
 
 # test worker_register and worker_get
+my $c          = OpenQA::WebAPI::Controller::API::V1::Worker->new;
 my $workercaps = {};
 $workercaps->{cpu_modelname}                = 'Rainbow CPU';
 $workercaps->{cpu_arch}                     = 'x86_64';
@@ -105,12 +108,7 @@ $workercaps->{cpu_opmode}                   = '32-bit, 64-bit';
 $workercaps->{mem_max}                      = '4096';
 $workercaps->{websocket_api_version}        = WEBSOCKET_API_VERSION;
 $workercaps->{isotovideo_interface_version} = WEBSOCKET_API_VERSION;
-
-my $c = OpenQA::WebAPI::Controller::API::V1::Worker->new;
-
-sub register_worker {
-    return $c->_register($schema, 'host', '1', $workercaps);
-}
+sub register_worker { $c->_register($schema, 'host', '1', $workercaps) }
 
 my ($id, $worker, $worker_db_obj);
 subtest 'worker registration' => sub {
@@ -292,18 +290,38 @@ subtest 'job listing' => sub {
     is_deeply($current_jobs, [$expected_jobs->[0]], "jobs with specified IDs (comma list)");
 };
 
+# assume the worker has just been seen
+my $last_seen = DateTime->now(time_zone => 'UTC');
+$last_seen->subtract(seconds => DB_TIMESTAMP_ACCURACY);
+$worker_db_obj->update({t_updated => $last_seen});
+$worker_db_obj->discard_changes;
+
 subtest 'job grab (WORKER_CLASS mismatch)' => sub {
-    OpenQA::Scheduler::Model::Jobs->singleton->schedule();
+    my $allocated = OpenQA::Scheduler::Model::Jobs->singleton->schedule();
+    $worker_db_obj->discard_changes;
     is(undef, $sent->{$worker->{id}}->{job}, 'job not grabbed due to default WORKER_CLASS');
+    is_deeply($allocated, [], 'no workers/jobs allocated');
+    is($worker_db_obj->t_updated, $last_seen, 't_updated has not changed');
+};
+
+subtest 'job grab (failed to send job to worker)' => sub {
+    $worker_db_obj->set_property(WORKER_CLASS => 'qemu_x86_64');
+    $ws_send_error = 'fake error';
+
+    my $allocated = OpenQA::Scheduler::Model::Jobs->singleton->schedule();
+    $worker_db_obj->discard_changes;
+    is_deeply($allocated, [], 'no workers/jobs allocated');
+    is($worker_db_obj->t_updated, $last_seen, 't_updated has not changed');
 };
 
 subtest 'job grab (successful assignment)' => sub {
     my $rjobs_before = list_jobs(state => RUNNING);
-    $worker_db_obj->set_property(WORKER_CLASS => 'qemu_x86_64');
+    undef $ws_send_error;
     OpenQA::Scheduler::Model::Jobs->singleton->schedule();
+    $worker_db_obj->discard_changes;
+
     my $grabbed     = $sent->{$worker->{id}}->{job}->to_hash;
     my $rjobs_after = list_jobs(state => ASSIGNED);
-
     ok($grabbed->{settings}->{JOBTOKEN}, 'job token present');
     $job_ref->{settings}->{JOBTOKEN} = $grabbed->{settings}->{JOBTOKEN};
     is_deeply($grabbed->{settings}, $job_ref->{settings}, 'settings correct');
@@ -315,6 +333,7 @@ subtest 'job grab (successful assignment)' => sub {
     is($grabbed->assigned_worker_id, $worker->{id}, 'worker assigned to job');
     is($grabbed->worker->id,         $worker->{id}, 'job assigned to worker');
     is($grabbed->state,              ASSIGNED,      'job is in assigned state');
+    is($worker_db_obj->t_updated,    $last_seen,    't_updated has not changed');
 };
 
 my ($job_id, $job3_id);
