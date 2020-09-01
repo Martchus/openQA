@@ -245,7 +245,7 @@ span.resborder_na {
         white-space: pre-wrap;
         overflow-wrap: break-word;
     }
-    &[title="wait_serial"] .resborder {
+    &.wait-serial-result .resborder {
         background-repeat: no-repeat;
         background-position: 0% 0%;
         padding-left: 40px;

@@ -52,7 +52,7 @@
                             % my $url   = url_for('step', moduleid => $module->{name}, stepid => $step->{num}, testid => $testid);
                             % my $href  = "#step/$module->{name}/$step->{num}";
                             % if ($is_external_or_serial_result) {
-                                <span title="<%= $title %>" data-href="<%= $href %>" onclick="toggleTextPreview(this)" class="text-result<%= $is_external_result ? 'external-result' : '' %>">
+                                <span title="<%= $title %>" data-href="<%= $href %>" onclick="toggleTextPreview(this)" class="text-result <%= $is_external_result ? 'external-result' : 'wait-serial-result' %>">
                                     <span class="resborder <%= $resborder %>"><span class="step_actions">
                                         %= bug_report_actions(moduleid => $module->{name}, stepid => $step->{num});
                                     </span><%= $step->{text_data} %></span>
