@@ -1,4 +1,4 @@
-# Copyright (C) 2019 SUSE LLC
+# Copyright (C) 2019-2020 SUSE LLC
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,9 +26,21 @@ has 'webui_host_specific_settings';
 
 sub new {
     my ($class, $instance_number, $cli_options) = @_;
-    $cli_options //= {};
 
-    my $settings_file = ($ENV{OPENQA_CONFIG} || '/etc/openqa') . '/workers.ini';
+    my $self = $class->SUPER::new;
+    $self->{_instance_number} = $instance_number;
+    $self->{_cli_options}     = $cli_options // {};
+    $self->{_parse_errors}    = undef;
+    $self->{_file_path}       = ($ENV{OPENQA_CONFIG} || '/etc/openqa') . '/workers.ini';
+    return $self->reload;
+}
+
+sub reload {
+    my ($self) = @_;
+
+    my $instance_number = $self->{_instance_number};
+    my $cli_options     = $self->{_cli_options};
+    my $settings_file   = $self->{_file_path};
     my $cfg;
     my @parse_errors;
     if (-e $settings_file) {
@@ -87,12 +99,9 @@ sub new {
     $global_settings{RETRY_DELAY}               //= 5;
     $global_settings{RETRY_DELAY_IF_WEBUI_BUSY} //= 60;
 
-    my $self = $class->SUPER::new(
-        global_settings              => \%global_settings,
-        webui_hosts                  => \@hosts,
-        webui_host_specific_settings => \%webui_host_specific_settings,
-    );
-    $self->{_file_path}    = $settings_file;
+    $self->global_settings(\%global_settings);
+    $self->webui_hosts(\@hosts);
+    $self->webui_host_specific_settings(\%webui_host_specific_settings);
     $self->{_parse_errors} = \@parse_errors;
     return $self;
 }

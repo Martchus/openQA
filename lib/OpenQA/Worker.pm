@@ -98,7 +98,7 @@ sub log_setup_info {
     my $instance = $self->instance_number;
     my $settings = $self->settings;
     my $msg      = "worker $instance:";
-    $msg .= "\n - config file:           " . ($settings->file_path // 'not found');
+    $msg .= "\n - config file:           " . ($settings->file_path // '?');
     $msg .= "\n - worker hostname:       " . $self->worker_hostname;
     $msg .= "\n - isotovideo version:    " . $self->isotovideo_interface_version;
     $msg .= "\n - websocket API version: " . WEBSOCKET_API_VERSION;

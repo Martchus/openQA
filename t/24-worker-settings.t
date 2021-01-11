@@ -121,7 +121,6 @@ subtest 'settings file with errors' => sub {
 subtest 'settings file not found' => sub {
     $ENV{OPENQA_CONFIG} = "$FindBin::Bin/data/24-worker-setting";
     my $settings = OpenQA::Worker::Settings->new(1);
-    is($settings->file_path, undef, 'no file path present');
     is_deeply($settings->parse_errors, ["Config file not found at '$FindBin::Bin/data/24-worker-setting/workers.ini'."],
         'error logged')
       or diag explain $settings->parse_errors;
