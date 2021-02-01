@@ -127,10 +127,11 @@ sub read_config {
             important_result_storage_duration => OpenQA::JobGroupDefaults::KEEP_IMPORTANT_RESULTS_IN_DAYS,
         },
         misc_limits => {
-            untracked_assets_storage_duration         => 14,
-            screenshot_cleanup_batch_size             => OpenQA::Task::Job::Limit::DEFAULT_SCREENSHOTS_PER_BATCH,
-            screenshot_cleanup_batches_per_minion_job => OpenQA::Task::Job::Limit::DEFAULT_BATCHES_PER_MINION_JOB,
-            results_min_free_disk_space_percentage    => undef,
+            untracked_assets_storage_duration              => 14,
+            screenshot_cleanup_batch_size                  => OpenQA::Task::Job::Limit::DEFAULT_SCREENSHOTS_PER_BATCH,
+            screenshot_cleanup_batches_per_minion_job      => OpenQA::Task::Job::Limit::DEFAULT_BATCHES_PER_MINION_JOB,
+            results_min_free_disk_space_percentage         => undef,
+            results_min_free_disk_space_percentage_dry_run => 1,
         },
         job_settings_ui => {
             keys_to_render_as_links => '',
