@@ -24,6 +24,7 @@ use OpenQA::Test::TimeLimit '60';
 use OpenQA::Test::Database;
 use OpenQA::Test::Case;
 use OpenQA::Test::Utils 'wait_for_or_bail_out';
+use OpenQA::Log 'log_error';
 use OpenQA::SeleniumTest;
 use Mojo::File qw(tempdir path);
 use File::Copy::Recursive 'dircopy';
@@ -105,7 +106,7 @@ END { stop_server }
 note("Starting fake api server");
 start_server();
 
-plan skip_all => $OpenQA::SeleniumTest::drivermissing unless my $driver = call_driver({with_gru => 1});
+plan skip_all => $OpenQA::SeleniumTest::drivermissing unless my $driver = call_driver({with_gru => 0});
 
 $driver->find_element_by_class('navbar-brand')->click();
 $driver->find_element_by_link_text('Login')->click();
@@ -117,11 +118,38 @@ my %params = (
     'Batch1'            => ['191216_150610', 'containers', 'BatchedProj', '470.2, 469.1'],
 );
 
-my $minion = $t->app->minion;
+my $app    = $t->app;
+my $minion = $app->minion;
+{
+    package FakeMinionJob;
+    use Mojo::Base -base;
+    has id  => 0;
+    has app => sub { $app };
+    sub fail   { $_[0]->{state} = 'failed';   $_[0]->{result} = $_[1] }
+    sub finish { $_[0]->{state} = 'finished'; $_[0]->{result} = $_[1] }
+    sub note ($self, %notes_to_take) {
+        my $notes = $self->info->{notes};
+        $notes->{$_} = $notes_to_take{$_} for keys %notes_to_take;
+    }
+    sub info { {notes => {project_lock => 1}} }
+}
 sub _wait_for_change ($selector, $break_cb, $refresh_cb = undef) {
     my $text;
     my $limit = int OpenQA::Test::TimeLimit::scale_timeout(10);
     for my $i (0 .. $limit) {
+
+        while (my $info = $pending_minion_jobs->next) {
+            use Data::Dumper;
+            note 'Job ' . Dumper($info);
+            $minion->job($info->{id})->remove;
+
+            my $job = FakeMinionJob->new(app => $app);
+            eval { $app->minion->tasks->{$info->{task}}->($job, @{$info->{args}}) };
+            if (my $error = $@) {
+                log_error($error);
+                $job->fail($error);
+            }
+        }
 
         # sometimes gru is not fast enough, so let's refresh the page and see if that helped
         if ($i > 0) {
@@ -148,6 +176,7 @@ foreach my $proj (sort keys %params) {
     my ($dt, $repo, $parent, $builds_text, $test_id, $test_result) = @{$params{$proj}};
 
     $driver->get("/admin/obs_rsync/$parent");
+    #sleep 10000;
     my $projfull = $proj;
     $projfull = "$parent|$proj" if $parent;
 
