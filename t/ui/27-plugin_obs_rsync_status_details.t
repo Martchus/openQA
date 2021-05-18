@@ -127,7 +127,8 @@ my $minion = $app->minion;
     has app => sub { $app };
     sub fail   { $_[0]->{state} = 'failed';   $_[0]->{result} = $_[1] }
     sub finish { $_[0]->{state} = 'finished'; $_[0]->{result} = $_[1] }
-    sub note ($self, %notes_to_take) {
+    sub note {
+        my ($self, %notes_to_take) = @_;
         my $notes = $self->info->{notes};
         $notes->{$_} = $notes_to_take{$_} for keys %notes_to_take;
     }
@@ -135,13 +136,16 @@ my $minion = $app->minion;
 }
 sub _wait_for_change ($selector, $break_cb, $refresh_cb = undef) {
     my $text;
-    my $limit = int OpenQA::Test::TimeLimit::scale_timeout(10);
+    my $limit = int OpenQA::Test::TimeLimit::scale_timeout(100000);
     for my $i (0 .. $limit) {
 
+        sleep 2;
+        my $pending_minion_jobs = $minion->jobs({states => [qw(inactive active)]});
+        my @processed_job_ids;
         while (my $info = $pending_minion_jobs->next) {
             use Data::Dumper;
             note 'Job ' . Dumper($info);
-            $minion->job($info->{id})->remove;
+            push @processed_job_ids, $info->{id};
 
             my $job = FakeMinionJob->new(app => $app);
             eval { $app->minion->tasks->{$info->{task}}->($job, @{$info->{args}}) };
@@ -150,14 +154,13 @@ sub _wait_for_change ($selector, $break_cb, $refresh_cb = undef) {
                 $job->fail($error);
             }
         }
+        $minion->job($_)->remove for @processed_job_ids;
 
         # sometimes gru is not fast enough, so let's refresh the page and see if that helped
         if ($i > 0) {
             sleep 1;
-            my $pending_minion_jobs = $minion->jobs({states => [qw(inactive active)]});
-            note 'Pending Minion jobs: ' . $pending_minion_jobs->total;
             note qq{Refreshing page, waiting for "$selector" to change};
-            $refresh_cb ? $refresh_cb->($pending_minion_jobs->total) : $driver->refresh;
+            $refresh_cb ? $refresh_cb->() : $driver->refresh;
         }
 
         wait_for_element(selector => $selector);
@@ -205,12 +208,7 @@ foreach my $proj (sort keys %params) {
     my $obsbuilds = _wait_for_change(
         "tr#folder_$ident .obsbuilds",
         sub { $_ eq $builds_text },
-        sub ($pending_minion_job_count) {
-            $driver->find_element("tr#folder_$ident .obsbuildsupdate")->click()
-              unless $pending_minion_job_count;
-            # note: Do not enqueue any further Minion jobs if there's still at least one
-            #       pending job.
-        });
+        sub { $driver->find_element("tr#folder_$ident .obsbuildsupdate")->click });
     is($obsbuilds, $builds_text, "$proj obs builds");
 
     if ($dt ne 'no data') {

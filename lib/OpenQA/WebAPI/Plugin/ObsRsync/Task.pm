@@ -106,6 +106,8 @@ sub update_obs_builds_text {
     my $guard = $helper->guard($project);
     return $job->finish('Gru lock exists') unless $guard;
 
+    print("Executing update_obs_builds_text\n");
+
     my $sub = sub {
         my (undef, $batch) = @_;
         my $read_files = Mojo::File->new($helper->home, $project, $batch, 'read_files.sh');
@@ -114,6 +116,7 @@ sub update_obs_builds_text {
         my @cmd = ("bash", $read_files);
         my ($stdin, $stdout, $error);
         my $exit_code = -1;
+        print("Executing update_obs_builds_text: @cmd\n");
         eval { IPC::Run::run(\@cmd, \$stdin, \$stdout, \$error); $exit_code = $?; };
         my $err = $@;
         return ($exit_code, $error // $err);
