@@ -547,7 +547,6 @@ sub missing_assets ($self) {
     my $assets = parse_assets_from_settings($self->settings_hash);
     return [] unless keys %$assets;
 
-
     # ignore UEFI_PFLASH_VARS; to keep scheduling simple it is present in lots of jobs which actually don't need it
     delete $assets->{UEFI_PFLASH_VARS};
 
@@ -1279,11 +1278,7 @@ sub progress_info ($self) {
             $donecount++;
         }
     }
-
-    return {
-        modcount => int(@modules),
-        moddone  => $donecount,
-    };
+    return {modcount => int(@modules), moddone => $donecount};
 }
 
 sub account_result_size ($self, $result_name, $size) {
@@ -1420,11 +1415,8 @@ sub create_asset ($self, $asset, $scope, $local) {
             $temp_chunk_folder->remove_tree
               && die Mojo::Exception->new("Checksum mismatch expected $sum got: $real_sum ( weak check on last bytes )")
               unless $sum eq $real_sum;
-
             $temp_final_file->move_to($final_file);
-
             chmod 0644, $final_file;
-
             $temp_chunk_folder->remove_tree;
         }
         $chunk->content(\undef);
@@ -1439,7 +1431,6 @@ sub has_failed_modules ($self) { $self->modules->count({result => 'failed'}, {ro
 sub failed_modules ($self) {
     my $fails = $self->modules->search({result => 'failed'}, {select => ['name'], order_by => 't_updated'});
     my @failedmodules;
-
     while (my $module = $fails->next) {
         push(@failedmodules, $module->name);
     }
@@ -1753,7 +1744,6 @@ sub store_column ($self, $columnname, $value) {
         # make sure no modules are left running
         $self->modules->search({result => RUNNING})->update({result => NONE});
     }
-
     return $self->SUPER::store_column($columnname, $value);
 }
 
