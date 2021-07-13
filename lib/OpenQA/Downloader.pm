@@ -26,7 +26,7 @@ use Time::HiRes 'sleep';
 
 has attempts => 5;
 has [qw(log tmpdir)];
-has sleep_time => 5;
+has sleep_time => $ENV{OPENQA_DOWNLOADER_SLEEP_TIME} // 5;
 has ua         => sub { Mojo::UserAgent->new(max_redirects => 5, max_response_size => 0) };
 has res        => undef;
 

@@ -24,6 +24,9 @@ BEGIN {
     $ENV{OPENQA_CACHE_SERVICE_QUIET}      = $ENV{HARNESS_IS_VERBOSE} ? 0 : 1;
     $ENV{OPENQA_CACHE_ATTEMPTS}           = 3;
     $ENV{OPENQA_CACHE_ATTEMPT_SLEEP_TIME} = 0;
+    $ENV{OPENQA_DOWNLOADER_SLEEP_TIME}    = 0;
+    $ENV{MOJO_CONNECT_TIMEOUT}            = 0.01;
+    $ENV{MOJO_INACTIVITY_TIMEOUT}         = 0.01;
 
     $tempdir = tempdir;
     my $basedir = $tempdir->child('t', 'cache.d');

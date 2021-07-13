@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2020 SUSE LLC
+# Copyright (C) 2017-2021 SUSE LLC
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@ use Mojo::URL;
 use OpenQA::Utils qw(base_host human_readable_size);
 use OpenQA::Downloader;
 use Mojo::File 'path';
+
+use constant RETRY_DELAY => $ENV{OPENQA_CACHE_ATTEMPT_SLEEP_TIME} // 1;
 
 has downloader => sub { OpenQA::Downloader->new };
 has [qw(location log sqlite)];
@@ -147,7 +149,7 @@ sub get_asset {
             # We can't just throw it away if database locks.
             my $att = 0;
             my $ok;
-            ++$att and sleep 1 and $log->info("Updating cache failed (attempt $att)")
+            ++$att and sleep RETRY_DELAY and $log->info("Updating cache failed (attempt $att)")
               until ($ok = $self->_update_asset($asset, $etag, $size)) || $att > 5;
             die qq{Updating the cache for "$asset" failed, this should never happen} unless $ok;
             my $cache_size = human_readable_size($self->{cache_real_size});
