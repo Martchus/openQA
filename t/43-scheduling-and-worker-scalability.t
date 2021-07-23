@@ -25,7 +25,7 @@ use Mojo::File 'path';
 use Mojo::Util 'dumper';
 use IPC::Run qw(start);
 use FindBin;
-use lib "$FindBin::Bin/lib", "$FindBin::Bin/../external/os-autoinst-common/lib";
+use lib "$FindBin::Bin/lib", "$FindBin::Bin/../external/os-autoinst-common/lib", "/hdd/openqa-devel/repos/os-autoinst";
 use OpenQA::Constants qw(WEBSOCKET_API_VERSION);
 use OpenQA::Scheduler::Model::Jobs;
 use OpenQA::Utils qw(service_port);
@@ -38,6 +38,10 @@ use OpenQA::Test::Utils
   qw(stop_service setup_fullstack_temp_dir);
 use OpenQA::Test::TimeLimit '20';
 use OpenQA::Utils 'testcasedir';
+
+use OpenQA::Benchmark::Stopwatch;
+
+my $stopwatch = OpenQA::Benchmark::Stopwatch->new->start;
 
 BEGIN {
     # set defaults
@@ -158,6 +162,8 @@ subtest 'wait for workers to be idle' => sub {
     ok(!@non_idle_workers, 'all workers idling') or diag explain \@non_idle_workers;
 };
 
+$stopwatch->lap('wait for workers to be idle');
+
 subtest 'assign and run jobs' => sub {
     my $scheduler = OpenQA::Scheduler::Model::Jobs->singleton;
     my $allocated = $scheduler->schedule;
@@ -220,6 +226,8 @@ subtest 'assign and run jobs' => sub {
     log_jobs unless $done && $passed;
 };
 
+$stopwatch->lap('assign and run jobs');
+
 subtest 'stop all workers' => sub {
     stop_service $_ for @workers;
     my @non_offline_workers;
@@ -234,6 +242,10 @@ subtest 'stop all workers' => sub {
     }
     ok(!@non_offline_workers, 'all workers offline') or diag explain \@non_offline_workers;
 };
+
+$stopwatch->lap('stop all workers');
+
+print $stopwatch->stop->summary;
 
 done_testing;
 
