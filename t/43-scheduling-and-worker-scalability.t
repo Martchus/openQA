@@ -99,7 +99,7 @@ note("Spawning $worker_count workers");
 sub spawn_worker {
     my ($instance) = @_;
 
-    local $ENV{PERL5OPT} = '';                                             # uncoverable statement
+    disable_coverage_collection_in_spawned_processes;
     note("Starting worker '$instance'");                                   # uncoverable statement
     $0 = 'openqa-worker';                                                  # uncoverable statement
     start ['perl', $worker_path, "--instance=$instance", @worker_args];    # uncoverable statement

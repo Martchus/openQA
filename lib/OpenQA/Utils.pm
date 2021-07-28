@@ -87,6 +87,7 @@ our @EXPORT  = qw(
   find_video_files
   fix_top_level_help
   looks_like_url_with_scheme
+  disable_coverage_collection_in_spawned_processes
 );
 
 our @EXPORT_OK = qw(
@@ -891,5 +892,7 @@ sub find_video_files { path(shift)->list_tree->grep(VIDEO_FILE_NAME_REGEX) }
 sub fix_top_level_help { @ARGV = () if ($ARGV[0] // '') =~ qr/^(-h|(--)?help)$/ }
 
 sub looks_like_url_with_scheme { return !!Mojo::URL->new(shift)->scheme }
+
+sub disable_coverage_collection_in_spawned_processes { local $ENV{PERL5OPT} = '' }    # uncoverable statement
 
 1;
