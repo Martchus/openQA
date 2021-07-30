@@ -48,8 +48,8 @@ use Mojo::IOLoop::Server;
 use POSIX '_exit';
 use Mojo::IOLoop::ReadWriteProcess qw(queue process);
 use Mojo::IOLoop::ReadWriteProcess::Session 'session';
-use OpenQA::Test::Utils qw(collect_coverage_of_gru_jobs fake_asset_server
-  cache_minion_worker cache_worker_service wait_for_or_bail_out);
+use OpenQA::Test::Utils
+  qw(exec_minion_job fake_asset_server cache_minion_worker cache_worker_service wait_for_or_bail_out);
 use OpenQA::Test::TimeLimit '50';
 use Mojo::Util qw(md5_sum);
 use OpenQA::CacheService;
@@ -408,17 +408,15 @@ subtest 'Multiple minion workers (parallel downloads, almost simulating real sce
 
 subtest 'Test Minion task registration and execution' => sub {
     my $asset = 'sle-12-SP3-x86_64-0368-200_133333@64bit.qcow2';
-
-    my $app = OpenQA::CacheService->new;
-    collect_coverage_of_gru_jobs($app);
-
-    my $req = $cache_client->asset_request(id => 922756, asset => $asset, type => 'hdd', host => $host);
+    my $app   = OpenQA::CacheService->new;
+    my $req   = $cache_client->asset_request(id => 922756, asset => $asset, type => 'hdd', host => $host);
     $cache_client->enqueue($req);
     my $worker = $app->minion->repair->worker->register;
     ok($worker->id, 'worker has an ID');
     my $job = $worker->dequeue(0);
     ok($job, 'job enqueued');
-    $job->perform;
+
+    exec_minion_job($job);
     my $status = $cache_client->status($req);
     ok $status->is_processed;
     ok $status->output;
@@ -427,7 +425,6 @@ subtest 'Test Minion task registration and execution' => sub {
 
 subtest 'Test Minion Sync task' => sub {
     my $app = OpenQA::CacheService->new;
-    collect_coverage_of_gru_jobs($app);
 
     my $dir  = tempdir;
     my $dir2 = tempdir;
@@ -440,7 +437,7 @@ subtest 'Test Minion Sync task' => sub {
     ok($worker->id, 'worker has an ID');
     my $job = $worker->dequeue(0);
     ok($job, 'job enqueued');
-    $job->perform;
+    exec_minion_job($job);
     my $status = $cache_client->status($req);
     ok $status->is_processed;
     is $status->result, 'exit code 0';
@@ -495,9 +492,7 @@ EOF
 
 subtest 'Concurrent downloads of the same file' => sub {
     my $asset = 'sle-12-SP3-x86_64-0368-200_133333@64bit.qcow2';
-
-    my $app = OpenQA::CacheService->new;
-    collect_coverage_of_gru_jobs($app);
+    my $app   = OpenQA::CacheService->new;
 
     my $req = $cache_client->asset_request(id => 922756, asset => $asset, type => 'hdd', host => $host);
     $cache_client->enqueue($req);
@@ -512,7 +507,7 @@ subtest 'Concurrent downloads of the same file' => sub {
     my $job = $worker->dequeue(0, {id => $req->minion_id});
     ok $job, 'job dequeued';
     ok !$app->progress->is_downloading($req->lock), 'not downloading yet';
-    $job->perform;
+    exec_minion_job($job);
     my $status = $cache_client->status($req);
     ok $status->is_processed, 'is processed';
     my $info = $app->minion->job($req->minion_id)->info;
@@ -526,7 +521,7 @@ subtest 'Concurrent downloads of the same file' => sub {
     ok !$app->progress->is_downloading($req2->lock), 'not downloading yet';
     ok my $guard = $app->progress->guard($req2->lock, $req->minion_id), 'lock acquired';
     ok $app->progress->is_downloading($req2->lock), 'concurrent download in progress';
-    $job2->perform;
+    exec_minion_job($job2);
     ok !$cache_client->status($req2)->is_processed, 'not yet processed';
     undef $guard;
     my $status2 = $cache_client->status($req2);
@@ -553,8 +548,6 @@ subtest 'Concurrent rsync' => sub {
     my $expected = $dir2->child('tests')->child('test');
 
     my $app = OpenQA::CacheService->new;
-    collect_coverage_of_gru_jobs($app);
-
     my $req = $cache_client->rsync_request(from => $dir, to => $dir2);
     $cache_client->enqueue($req);
     my $req2 = $cache_client->rsync_request(from => $dir, to => $dir2);
@@ -568,7 +561,7 @@ subtest 'Concurrent rsync' => sub {
     my $job = $worker->dequeue(0, {id => $req->minion_id});
     ok $job, 'job dequeued';
     ok !$app->progress->is_downloading($req->lock), 'not downloading yet';
-    $job->perform;
+    exec_minion_job($job);
     my $status = $cache_client->status($req);
     ok $status->is_processed, 'is processed';
     is $status->result, 'exit code 0', 'expected result';

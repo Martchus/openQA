@@ -50,7 +50,7 @@ our (@EXPORT, @EXPORT_OK);
     qw(mock_service_ports setup_mojo_app_with_default_worker_timeout),
     qw(redirect_output create_user_for_workers),
     qw(create_webapi create_websocket_server create_scheduler create_live_view_handler),
-    qw(unresponsive_worker broken_worker rejective_worker setup_share_dir setup_fullstack_temp_dir run_gru_job),
+    qw(unresponsive_worker broken_worker rejective_worker setup_share_dir setup_fullstack_temp_dir exec_minion_job run_gru_job),
     qw(collect_coverage_of_gru_jobs stop_service start_worker unstable_worker fake_asset_server),
     qw(cache_minion_worker cache_worker_service shared_hash embed_server_for_testing),
     qw(run_cmd test_cmd wait_for_or_bail_out perform_minion_jobs),
@@ -571,13 +571,18 @@ sub embed_server_for_testing {
     return $server;
 }
 
+sub exec_minion_job ($job) {
+    my $err = $job->execute;
+    defined $err ? $job->fail($err) : $job->finish;
+    return $err;
+}
+
 sub run_gru_job {
     my $app    = shift;
     my $id     = $app->gru->enqueue(@_)->{minion_id};
     my $worker = $app->minion->worker->register;
     my $job    = $worker->dequeue(0, {id => $id});
-    my $err;
-    defined($err = $job->execute) ? $job->fail($err) : $job->finish;
+    exec_minion_job($job);
     $worker->unregister;
     return $job->info;
 }
