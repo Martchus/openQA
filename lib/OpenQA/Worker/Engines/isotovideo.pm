@@ -381,7 +381,8 @@ sub _engine_workit_step_2 ($job, $job_settings, $vars, $shared_cache, $callback)
     }
 
     # ensure a NEEDLES_DIR is assigned and create a symlink if required
-    # explanation for the subsequent if-elsif conditions:
+    # If NEEDLES_DIR_BASE is set to `casedir` a relative NEEDLES_DIR is assumed to be relative to the CASEDIR.
+    # Otherwise the default behavior takes place:
     # - If a custom CASEDIR/PRODUCTDIR has been specified, we still assume that a *relative* NEEDLES_DIR is
     #   relative to the default directory. In case the custom CASEDIR/PRODUCTDIR checkout would actually contain
     #   needles as well (instead of relying on a separate repository) one must *not* specify a custom NEEDLES_DIR
@@ -390,20 +391,35 @@ sub _engine_workit_step_2 ($job, $job_settings, $vars, $shared_cache, $callback)
     #   needles directory is supposed to be used and make the assignment/symlink accordingly.
     # - If the specified NEEDLES_DIR is an absolute path or an URL we assume that it points to a custom location
     #   and keep it as-is.
-    my $default_needles_dir     = needledir(@vars_for_default_dirs);
-    my $needles_dir             = $vars->{NEEDLES_DIR};
-    my $need_to_set_needles_dir = !$needles_dir && $has_custom_dir;
-    if ($need_to_set_needles_dir && $absolute_paths) {
-        # simply set the default needles dir when absolute paths are used
-        $vars->{NEEDLES_DIR} = $default_needles_dir;
+    my $default_needles_dir = needledir(@vars_for_default_dirs);
+    my $needles_dir_base    = lc($vars->{NEEDLES_DIR_BASE}) // 'default';
+    my $needles_dir         = $vars->{NEEDLES_DIR};
+    if ($needles_dir_base eq 'default') {
+        my $need_to_set_needles_dir = !$needles_dir && $has_custom_dir;
+        if ($need_to_set_needles_dir && $absolute_paths) {
+            # simply set the default needles dir when absolute paths are used
+            $vars->{NEEDLES_DIR} = $default_needles_dir;
+        }
+        elsif ($need_to_set_needles_dir
+            || ($needles_dir && !file_name_is_absolute($needles_dir) && !looks_like_url_with_scheme($needles_dir)))
+        {
+            # create/assign a symlink for needles if NEEDLES_DIR has been specified by the user as a path relative to
+            # the default CASEDIR/PRODUCTDIR
+            $vars->{NEEDLES_DIR} = $needles_dir = basename($needles_dir || 'needles');
+            if (my $error = _link_repo($default_needles_dir, $pooldir, $needles_dir)) { return $callback->($error) }
+        }
     }
-    elsif ($need_to_set_needles_dir
-        || ($needles_dir && !file_name_is_absolute($needles_dir) && !looks_like_url_with_scheme($needles_dir)))
-    {
-        # create/assign a symlink for needles if NEEDLES_DIR has been specified by the user as a path relative to
-        # the default CASEDIR/PRODUCTDIR
-        $vars->{NEEDLES_DIR} = $needles_dir = basename($needles_dir || 'needles');
-        if (my $error = _link_repo($default_needles_dir, $pooldir, $needles_dir)) { return $callback->($error) }
+    elsif ($needles_dir_base eq 'casedir') {
+        if ($needles_dir && !file_name_is_absolute($needles_dir) && !looks_like_url_with_scheme($needles_dir)) {
+            # prepend CASEDIR as we assume the CASEDIR is the base but isotovideo would by default use its working
+            # directory
+            # FIXME: This obviously won't work if CASEDIR is a Git URL. Should we somehow deduce the checkout directory
+            #        here?
+            $vars->{NEEDLES_DIR} = "$casedir/$vars->{NEEDLES_DIR}";
+        }
+    }
+    else {
+        return $callback->('NEEDLES_DIR_BASE must be either "default" or "casedir".');
     }
     _save_vars($pooldir, $vars);
 
