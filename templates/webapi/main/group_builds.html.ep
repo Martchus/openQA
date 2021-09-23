@@ -25,11 +25,13 @@
                 % }
             </span>
         </div>
-        <div class="px-2 align-self-end flex-grow-1">
+        <a data-target="#<%= $group_id %>" href="<%= url_for('tests_overview')->query(@tests_overview_url_data, map { (groupid => $_->{id}) } @{$children});%>" class="px-2 align-self-end flex-grow-1" style="text-decoration: none">
+        <div>
             % if ($max_jobs) {
                 %= include 'main/build_progressbar', max_jobs => $max_jobs, result => $build_res
             % }
         </div>
+        </a>
     </div>
     % if ($children) {
         <div id="<%= $group_id %>" class="build_group_children <%= $default_expanded ? 'show' : '' %> collapse">
@@ -43,9 +45,11 @@
                                 %= include 'main/review_badge', group_build_id => $group_build_id, build_res => $child_res, id_prefix => 'child-'
                             </span>
                         </div>
-                        <div class="px-2 align-self-end flex-grow-1">
+                        <a href="<%= url_for('tests_overview')->query(distri => [sort keys %{$child_res->{distris}}], version => $child_res->{version}, build => $build, groupid => $child->{id});%>" class="px-2 align-self-end flex-grow-1" style="text-decoration: none">
+                        <div >
                             %= include 'main/build_progressbar', max_jobs => $child_res->{total}, result => $child_res
                         </div>
+                        </a>
                     </div>
                 % }
             % }
