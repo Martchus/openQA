@@ -221,8 +221,8 @@ sub handle_tx ($tx, $jobid, $job, $base_url, $options, $clone_map, $depth, $chil
     }
 }
 
-sub clone_job ($jobid, $options, $clone_map = {}, $depth = 0, $parent_jobid = 0) {
-    return $clone_map->{$jobid} if defined $clone_map->{$jobid};
+sub clone_job ($jobid, $options, $post_params = {}, $depth = 0, $parent_jobid = 0) {
+    return $post_params if defined $post_params->{$jobid};
 
     my ($ua, $local, $local_url, $remote, $remote_url) = create_url_handler($options);
     my $job = clone_job_get_job($jobid, $remote, $remote_url, $options);
@@ -238,14 +238,14 @@ sub clone_job ($jobid, $options, $clone_map = {}, $depth = 0, $parent_jobid = 0)
             for my $dependencies ($chained, $directly_chained, $parallel) {
                 # don't clone parallel jobs yet if children job type
                 next if $dependencies == $parallel && $job_type eq 'children';
-                clone_job($_, $options, $clone_map, $depth + 1) for @$dependencies;
+                clone_job($_, $options, $post_params, $depth + 1) for @$dependencies;
                 # abort here if the job has already been cloned as part of the preceding recursive clone_job call
-                return $clone_map->{$jobid} if defined $clone_map->{$jobid};
+                return $post_params if defined $post_params->{$jobid};
             }
 
-            my @new_chained = map { $clone_map->{$_} } @$chained;
-            my @new_directly_chained = map { $clone_map->{$_} } @$directly_chained;
-            my @new_parallel = map { $clone_map->{$_} } @$parallel;
+            my @new_chained = @$chained;
+            my @new_directly_chained = @$directly_chained;
+            my @new_parallel = @$parallel;
 
             $job->{settings}->{_PARALLEL_JOBS} = join(',', @new_parallel) if @new_parallel && !defined $child_list;
             $job->{settings}->{_PARALLEL_JOBS} = join(',', $parent_jobid) if $parent_jobid > 0;
@@ -256,7 +256,6 @@ sub clone_job ($jobid, $options, $clone_map = {}, $depth = 0, $parent_jobid = 0)
 
     clone_job_download_assets($jobid, $job, $remote, $remote_url, $ua, $options) unless $options->{'skip-download'};
 
-    my $url = $local_url->clone;
     my $source_url = $remote_url->clone;
     $source_url->path("/tests/$jobid");
     my %settings = %{$job->{settings}};
@@ -266,7 +265,11 @@ sub clone_job ($jobid, $options, $clone_map = {}, $depth = 0, $parent_jobid = 0)
     }
     clone_job_apply_settings($options->{args}, $depth, \%settings, $options);
     print Cpanel::JSON::XS->new->pretty->encode(\%settings) if $options->{verbose};
+    $post_params->{$jobid} = \%settings;
 
+    # FIXME: do actual request (outside of this function)
+    return $post_params;
+    my $url = $local_url->clone;
     my $tx = $local->max_redirects(3)->post($url, form => \%settings);
     handle_tx($tx, $jobid, $job, openqa_baseurl($local_url), $options, $clone_map, $depth, $child_list);
 }
