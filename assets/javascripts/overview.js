@@ -42,9 +42,25 @@ function showToggleLinkForParallelParents(relatedRow, relatedTable, resElement, 
     return false;
   }
   const jobID = jobIDMatch[0];
-  if (!parallelChildren.find(childID => relatedTable.querySelector('#res-' + childID))) {
+  const childResElements = parallelChildren.map(childID => relatedTable.querySelector('#res-' + childID)).filter(element => element);
+  if (!childResElements.length) {
     return false;
   }
+  const childStates = [];
+  const childResults = [];
+  childResElements.forEach(childResElement => {
+    Array.from(childResElement.getElementsByClassName('status')).forEach(e => {
+      const state = e.className.match(/state_\w+/);
+      if (state) {
+        childStates.push(state[0]);
+      }
+      const result = e.className.match(/result_\w+/);
+      if (result) {
+        childResults.push(result[0]);
+      }
+    });
+  });
+  debugger;
   const testNameCell = relatedRow.firstElementChild;
   const existingToggleLink = testNameCell.getElementsByClassName('toggle-parallel-children');
   if (existingToggleLink.length) {
