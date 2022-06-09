@@ -214,7 +214,9 @@ subtest 'stacking of parallel children' => sub {
     $expand_all_buttons[0]->click;
     element_visible '#res-99937', undef, undef, 'job 99937 expanded via expand all button';
     element_visible '#res-99982', undef, undef, 'job 99982 stays expanded';
+    note "before click";
     $collapse_all_buttons[0]->click;
+    note "after click";
     element_hidden '#res-99937', 'job 99937 collapsed via collapse all button';
     element_hidden '#res-99982', 'job 99982 collapsed via collapse all button';
 };

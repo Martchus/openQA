@@ -18,6 +18,15 @@ function considerChildrenChanged(expanded, parentElement) {
 }
 
 function toggleAllParallelChildren(expand, table) {
+  if (!expand) {
+    // keep busy for 10 seconds to show that Selenium waits until JavaScript code has been processed
+    const timeout = 10000;
+    const startTime = new Date().getTime();
+    while (true) {
+      const elapsedTime = new Date().getTime() - startTime;
+      if (elapsedTime >= timeout) break;
+    }
+  }
   const display = overviewRowDisplay(expand);
   Array.from(table.getElementsByClassName('parallel-child')).forEach(childRow => {
     childRow.style.display = display;
