@@ -217,6 +217,7 @@ jobs:
     <<: *test-fullstack-template
 
   codecov:
+    context: Codecov
     docker:
       - <<: *base
     steps:
