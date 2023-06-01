@@ -64,6 +64,7 @@ subtest 'Test configuration default modes' => sub {
             update_branch => '',
             do_push => 'no',
             do_cleanup => 'no',
+            checkout_needles_sha => 'no',
         },
         'scheduler' => {
             max_job_scheduled_time => 7,
