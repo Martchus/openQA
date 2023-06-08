@@ -66,6 +66,7 @@ sub read_config ($app) {
             do_push => 'no',
             do_cleanup => 'no',
             checkout_needles_sha => 'no',
+            minimum_needle_retention_time => undef,
         },
         scheduler => {
             max_job_scheduled_time => 7,
