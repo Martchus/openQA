@@ -84,6 +84,7 @@ function updateTestStatus(newStatus) {
 
       // show embedded logfile (autoinst-log.txt) if there are no test modules are available and skip further processing
       const modules = data.modules;
+      const bugrefRegex = typeof data.bugref_regex === 'string' ? new RegExp() : undefined;
       if (!Array.isArray(modules)) {
         if (typeof snippets.header === 'string') {
           detailsTab.panelElement.innerHTML = snippets.header;
@@ -159,7 +160,7 @@ function updateTestStatus(newStatus) {
           document.body.appendChild(previewContainer);
         }
         // actually update the row
-        resultRow.replaceWith(renderModuleRow(module, snippets));
+        resultRow.replaceWith(renderModuleRow(module, snippets, bugrefRegex));
       });
 
       testStatus.running = newStatus.running;

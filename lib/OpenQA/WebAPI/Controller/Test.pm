@@ -9,7 +9,7 @@ use OpenQA::Utils;
 use OpenQA::Jobs::Constants;
 use OpenQA::Schema::Result::Jobs;
 use OpenQA::Schema::Result::JobDependencies;
-use OpenQA::Utils qw(determine_web_ui_web_socket_url get_ws_status_only_url);
+use OpenQA::Utils qw(determine_web_ui_web_socket_url get_ws_status_only_url BUGREF_REGEX);
 use Mojo::ByteStream;
 use Mojo::Util 'xml_escape';
 use Mojo::File 'path';
@@ -351,7 +351,7 @@ sub details ($self) {
         md5thumb_url => $self->url_for('thumb_image', md5_dirname => '$DIRNAME$', md5_basename => '$BASENAME$'),
         thumbnail_url => $self->url_for('test_thumbnail', testid => $job->id, filename => '$FILENAME$')};
 
-    return $self->render(json => {snippets => $snips, modules => \@ret});
+    return $self->render(json => {snippets => $snips, modules => \@ret, bugref_regex => '' . BUGREF_REGEX});
 }
 
 sub external ($self) {

@@ -55,7 +55,12 @@ function moduleResultCSS(result) {
   return 'resultunknown';
 }
 
-function renderModuleRow(module, snippets) {
+function bugrefToHref(text, bugrefRegex) {
+  debugger;
+  return text; // TODO
+}
+
+function renderModuleRow(module, snippets, bugrefRegex) {
   const E = createElement;
   const rowid = 'module_' + module.name.replace(/[^a-z0-9_-]+/gi, '-');
   const flags = [];
@@ -187,7 +192,7 @@ function renderModuleRow(module, snippets) {
       const textresult = E('pre', [textData]);
       var html = stepActions.outerHTML;
       html += textresult.outerHTML;
-      const txt = escape(html);
+      const txt = escape(bugrefToHref(html, bugrefRegex));
       const link = E('a', box, {
         class: 'no_hover' + (title === 'wait_serial' ? ' serial-result-preview' : ''),
         'data-text': txt,
@@ -218,7 +223,7 @@ function renderModuleRow(module, snippets) {
   return E('tr', [component, result, links], {id: rowid});
 }
 
-function renderModuleTable(container, response) {
+function renderModuleTable(container, response, bugrefRegex) {
   container.innerHTML = response.snippets.header;
 
   if (response.modules === undefined || response.modules === null) {
@@ -242,6 +247,7 @@ function renderModuleTable(container, response) {
       );
     }
 
-    tbody.appendChild(renderModuleRow(module, response.snippets));
+    const bugrefRegex = typeof response.bugref_regex === 'string' ? new RegExp(response.bugref_regex) : undefined;
+    tbody.appendChild(renderModuleRow(module, response.snippets, bugrefRegex));
   }
 }
