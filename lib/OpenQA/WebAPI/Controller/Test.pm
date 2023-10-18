@@ -327,8 +327,9 @@ sub details ($self) {
 
     for my $module (@{$modules->{modules}}) {
         for my $detail (@{$module->{details}}) {
-            if (my $text_data = $detail->{text_data}) {
-                $detail->{text_data} = $self->rendered_refs_no_shortening($text_data);
+            if (!$detail->{is_parser_text_result}) {
+                my $text_data = $detail->{text_data};
+                $detail->{text_data} = $self->rendered_refs_no_shortening($text_data) if $text_data;
             }
             delete $detail->{needles};
         }

@@ -117,9 +117,9 @@ function renderModuleRow(module, snippets) {
     const textData = step.text_data;
     if (step.is_parser_text_result) {
       const elements = [];
-      const template = renderTemplate(snippets.bug_actions, {MODULE: module.name, STEP: step.num});
-      const stepFrame = E('span', [], {class: 'resborder ' + step.resborder});
-      stepFrame.innerHTML = '<span class="step_actions">' + template + '</span>' + textData;
+      const stepActions = E('span', [], {class: 'step_actions'});
+      stepActions.innerHTML = renderTemplate(snippets.bug_actions, {MODULE: module.name, STEP: step.num});
+      const stepFrame = E('span', [stepActions, textData], {class: 'resborder ' + step.resborder});
       const textResult = E('span', [stepFrame], {
         title: step.is_parser_text_result ? title : undefined,
         'data-href': href,
