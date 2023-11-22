@@ -64,6 +64,13 @@ sub status ($self, $request) {
     return OpenQA::CacheService::Response::Status->new(data => $data, error => $err);
 }
 
+sub withdraw ($self, $request) {
+    my $id = $request->minion_id;
+    my $tx = $self->_request('put', $self->url("withdraw/$id"));
+    if (my $err = $self->_error('withdraw', $tx)) { return $err }
+    return undef;
+}
+
 sub enqueue ($self, $request) {
     my $data = {task => $request->task, args => $request->to_array, lock => $request->lock};
     my $tx = $self->_request('post', $self->url('enqueue'), json => $data);

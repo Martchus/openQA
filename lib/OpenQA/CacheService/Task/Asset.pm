@@ -20,10 +20,19 @@ sub _cache_asset ($job, $id, $type = undef, $asset_name = undef, $host = undef) 
     unless ($guard) {
         my $id = $app->progress->downloading_job($lock);
         $job->note(downloading_job => $id);
+        my $dl_job = $job->minion->job($id);
+        $dl_job->note(ref_count => $dl_job->info->{notes}->{ref_count} + 1) if $id;
         $id ||= 'unknown';
         $job->note(output => qq{Asset "$asset_name" was downloaded by #$id, details are therefore unavailable here});
         return $job->finish;
     }
+
+    $SIG{USR1} = sub ($signal) {
+        my $this_job = $job->minion->job($job_id);
+        my $new_ref_count = $this_job->info->{notes}->{ref_count} - 1;
+        $this_job->note(ref_count => $new_ref_count);
+        Mojo::IOLoop->stop unless $new_ref_count;
+    };
 
     my $log = $app->log;
     $log->info(qq{Downloading: "$asset_name"});

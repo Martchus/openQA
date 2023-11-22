@@ -85,13 +85,18 @@ sub detect_asset_keys ($vars) {
 
 sub _poll_cache_service ($job, $cache_client, $request, $delay, $callback) {
     # perform status updates while waiting and handle interruptions
-    return $callback->({error => 'Status updates interrupted'}, undef) unless $job->post_setup_status;
+    my $error;
+    $error = 'Status updates interrupted' unless $job->post_setup_status;
+    $error //= 'Job has been cancelled' if $job->is_stopped_or_stopping;
+    if ($error) {
+        $cache_client->withdraw($request);
+        return $callback->({error => $error}, undef);
+    }
 
     my $status = $cache_client->status($request);
     return Mojo::IOLoop->singleton->timer(
         $delay => sub { _poll_cache_service($job, $cache_client, $request, $delay, $callback) })
       if !$status->is_processed && !$status->has_error;
-    return $callback->({error => 'Job has been cancelled'}, undef) if $job->is_stopped_or_stopping;
     return $callback->({error => $status->error}, undef) if $status->has_error;
     return $callback->(undef, $status);
 }

@@ -108,6 +108,7 @@ sub startup {
     $r->get('/' => sub { shift->redirect_to('/minion') });
     $r->get('/info')->to('API#info');
     $r->get('/status/<id:num>')->to('API#status');
+    $r->put('/withdraw/<id:num>')->to('API#withdraw');
     $r->post('/enqueue')->to('API#enqueue');
     $r->get('/influxdb/minion')->to('Influxdb#minion');
     $r->any('/*whatever' => {whatever => ''})->to(status => 404, text => 'Not found');
