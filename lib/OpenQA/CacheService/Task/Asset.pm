@@ -15,8 +15,27 @@ sub _cache_asset ($job, $id, $type = undef, $asset_name = undef, $host = undef) 
     my $lock = $job->info->{notes}{lock};
     return $job->finish unless defined $asset_name && defined $type && defined $host && defined $lock;
 
+    # Setup signal handler for aborting early on SIGUSR1
+    my $guard;
+    my $log = $app->log;
+    $SIG{USR1} = sub ($signal) {
+        my $this_job = $job->minion->job($job_id);
+        my $new_ref_count = $this_job->info->{notes}->{ref_count} - 1;
+        $this_job->note(ref_count => $new_ref_count);
+        return if $new_ref_count;
+        $this_job->note(ref_count => Mojo::JSON->true);
+        if (Mojo::IOLoop->is_running) {
+            $log->info('Download was withdrawn: stopping IO loop early');
+            Mojo::IOLoop->stop;
+        } elsif ($guard) {
+            $log->info('Download was withdrawn: exiting early');
+            $job->finish;
+            exit 0;
+        }
+    };
+
     # Handle concurrent requests gracefully and try to share logs
-    my $guard = $app->progress->guard($lock, $job_id);
+    $guard = $app->progress->guard($lock, $job_id);
     unless ($guard) {
         my $id = $app->progress->downloading_job($lock);
         $job->note(downloading_job => $id);
@@ -27,14 +46,6 @@ sub _cache_asset ($job, $id, $type = undef, $asset_name = undef, $host = undef) 
         return $job->finish;
     }
 
-    $SIG{USR1} = sub ($signal) {
-        my $this_job = $job->minion->job($job_id);
-        my $new_ref_count = $this_job->info->{notes}->{ref_count} - 1;
-        $this_job->note(ref_count => $new_ref_count);
-        Mojo::IOLoop->stop unless $new_ref_count;
-    };
-
-    my $log = $app->log;
     $log->info(qq{Downloading: "$asset_name"});
 
     # Log messages need to be logged by this service as well as captured and
