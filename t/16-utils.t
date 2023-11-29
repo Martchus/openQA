@@ -334,6 +334,7 @@ subtest parse_assets_from_settings => sub {
         ISO => "foo.iso",
         ISO_2 => "foo_2.iso",
         # this is a trap: shouldn't be treated as an asset
+        ISO_2_URL => 'http://foo/foo_2.iso',
         HDD => "hdd.qcow2",
         HDD_1 => "hdd_1.qcow2",
         HDD_2 => "hdd_2.qcow2",

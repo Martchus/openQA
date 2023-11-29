@@ -19,16 +19,19 @@ sub _cache_asset ($job, $id, $type = undef, $asset_name = undef, $host = undef) 
     my $guard;
     my $log = $app->log;
     $SIG{USR1} = sub ($signal) {
+        # decrement ref_count
         my $this_job = $job->minion->job($job_id);
         my $new_ref_count = $this_job->info->{notes}->{ref_count} - 1;
         $this_job->note(ref_count => $new_ref_count);
         return if $new_ref_count;
-        $this_job->note(ref_count => Mojo::JSON->true);
+
+        # abort early
+        $this_job->note(aborted_early => Mojo::JSON->true);
         if (Mojo::IOLoop->is_running) {
-            $log->info('Download was withdrawn: stopping IO loop early');
+            $log->info('Download was withdrawn: download was actually ongling, stopping IO loop early');
             Mojo::IOLoop->stop;
         } elsif ($guard) {
-            $log->info('Download was withdrawn: exiting early');
+            $log->info('Download was withdrawn: we were *likely* setting up download, just exiting early');
             $job->finish;
             exit 0;
         }
