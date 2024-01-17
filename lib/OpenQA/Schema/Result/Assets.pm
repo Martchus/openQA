@@ -106,6 +106,12 @@ sub remove_from_disk {
         log_info("GRU: skipping removal of $type/$name; it does not exist anyways");
         return undef;
     }
+    if (my $target = readlink $file) {
+        if ($target =~ qr{^fixed/} && -e $target) {
+            log_info("GRU: skipping removal of $type/$name; it points to an existing asset in the fixed directory");
+            return undef;
+        }
+    }
     if (-f $file ? unlink($file) : remove_tree($file)) {
         log_info("GRU: removed $file");
     }
