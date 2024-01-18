@@ -97,6 +97,7 @@ sub is_fixed {
 }
 
 sub _unlink ($file, $msg) {
+    print "called _unlink: $file - $msg\n";
     unlink($file) ? log_info($msg) : log_error("GRU: unable to remove '$file': $!");
 }
 
@@ -113,7 +114,7 @@ sub remove_from_disk {
     }
     return log_info "GRU: skipping removal of '$file'; it does not exist anyway" unless -e $file;
     return _unlink $file, "GRU: removed '$file'" if -f $file;
-    remove_tree $file ? log_info "GRU: removed tree '$file'" : log_error "GRU: unable to remove tree '$file'";
+    remove_tree($file) ? log_info("GRU: removed tree '$file'") : log_error("GRU: unable to remove tree '$file'");
 }
 
 # override to automatically remove the corresponding file from disk when deleting the database entry

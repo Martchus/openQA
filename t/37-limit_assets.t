@@ -57,7 +57,7 @@ subtest 'configurable concurrency' => sub {
 
 subtest 'filesystem removal' => sub {
     my $asset_sub_dir = path(assetdir(), 'foo');
-    $asset_sub_dir->make_path;
+    $asset_sub_dir->remove_tree->make_path;
 
     subtest 'remove file' => sub {
         my $asset_path = path($asset_sub_dir, 'foo.txt');
@@ -68,10 +68,10 @@ subtest 'filesystem removal' => sub {
     };
     my $asset_path = path($asset_sub_dir, 'some-repo');
     subtest 'remove directory tree' => sub {
-        $asset_path->remove_tree->make_path;
+        $asset_path->make_path;
         $asset_path->child('repo-file')->spew('a file within the repo');
         stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
-        qr/removed '$asset_path'/, 'removal logged';
+        qr/removed tree '$asset_path'/, 'removal logged';
         ok !-e $asset_path, 'asset is gone';
     };
     subtest 'remove dangling symlink' => sub {
@@ -79,16 +79,19 @@ subtest 'filesystem removal' => sub {
         stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
         qr/removed dangling symlink '$asset_path' pointing to 'does-not-exist'/, 'removal logged';
         is readlink($asset_path), undef, 'asset is gone';
+        ok !-l $asset_path, 'asset is gone';
     };
-    subtest 'removal skipped' => sub {
+    subtest 'removal of non-existing asset skipped' => sub {
         stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
-        qr/skipping removal of '$asset_path'/, 'skpping logged';
+        qr/skipping removal of '$asset_path'; .* does not exist/, 'skipping logged';
     };
     subtest 'preserve symlink into fixed directory' => sub {
-        my $fixed_asset_path = $asset_path->child('fixed/some-repo');
+        $asset_path->remove_tree;
+        my $fixed_asset_path = $asset_sub_dir->child('fixed/some-repo')->make_path;
         my $fixed_asset_file = $fixed_asset_path->child('repo-file');
         $fixed_asset_file->spew('a file within the repo');
-        ok symlink('./fixed/some-repo', $asset_path), 'created symlink into fixed directory';
+        ok symlink('./fixed/some-repo', $asset_path), 'created symlink into fixed directory'
+            or note "unable to symlink: $!";
         stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
         qr{skipping .* '$asset_path'; .* points to './fixed/some-repo'}, 'skipping logged';
         ok -e $asset_path, 'asset was preserved';
