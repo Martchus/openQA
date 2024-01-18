@@ -4,7 +4,7 @@
 package OpenQA::Schema::Result::Assets;
 
 
-use Mojo::Base 'DBIx::Class::Core';
+use Mojo::Base 'DBIx::Class::Core', -signatures;
 
 use OpenQA::App;
 use OpenQA::Jobs::Constants;
@@ -96,28 +96,24 @@ sub is_fixed {
     return (index($self->disk_file, catfile('fixed', $self->name)) > -1);
 }
 
+sub _unlink ($file, $msg) {
+    unlink($file) ? log_info($msg) : log_error("GRU: unable to remove '$file': $!");
+}
+
 sub remove_from_disk {
     my ($self) = @_;
 
     my $type = $self->type;
     my $name = $self->name;
-    my $file = locate_asset($type, $name, mustexist => 1);
-    if (!defined $file) {
-        log_info("GRU: skipping removal of $type/$name; it does not exist anyways");
-        return undef;
-    }
+    my $file = locate_asset($type, $name);
     if (my $target = readlink $file) {
-        if ($target =~ qr{^fixed/} && -e $target) {
-            log_info("GRU: skipping removal of $type/$name; it points to an existing asset in the fixed directory");
-            return undef;
-        }
+        return _unlink $file, "GRU: removed dangling symlink '$file' pointing to '$target'" unless -e $target;
+        return log_info "GRU: skipping removal of '$file'; it points to '$target' in the fixed directory"
+            if $target =~ qr{^(\./)?fixed/};
     }
-    if (-f $file ? unlink($file) : remove_tree($file)) {
-        log_info("GRU: removed $file");
-    }
-    else {
-        log_error("GRU: unable to remove $file");    # uncoverable statement trivial error report
-    }
+    return log_info "GRU: skipping removal of '$file'; it does not exist anyway" unless -e $file;
+    return _unlink $file, "GRU: removed '$file'" if -f $file;
+    remove_tree $file ? log_info "GRU: removed tree '$file'" : log_error "GRU: unable to remove tree '$file'";
 }
 
 # override to automatically remove the corresponding file from disk when deleting the database entry

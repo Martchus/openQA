@@ -63,20 +63,35 @@ subtest 'filesystem removal' => sub {
         my $asset_path = path($asset_sub_dir, 'foo.txt');
         $asset_path->spew('foo');
         stdout_like { $assets->create({type => 'foo', name => 'foo.txt', size => 3})->delete }
-        qr/removed $asset_path/, 'removal logged';
-        ok(!-e $asset_path, 'asset is gone');
+        qr/removed '$asset_path'/, 'removal logged';
+        ok !-e $asset_path, 'asset is gone';
     };
+    my $asset_path = path($asset_sub_dir, 'some-repo');
     subtest 'remove directory tree' => sub {
-        my $asset_path = path($asset_sub_dir, 'some-repo');
-        $asset_path->make_path;
-        path($asset_path, 'repo-file')->spew('a file within the repo');
+        $asset_path->remove_tree->make_path;
+        $asset_path->child('repo-file')->spew('a file within the repo');
         stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
-        qr/removed $asset_path/, 'removal logged';
-        ok(!-e $asset_path, 'asset is gone');
+        qr/removed '$asset_path'/, 'removal logged';
+        ok !-e $asset_path, 'asset is gone';
+    };
+    subtest 'remove dangling symlink' => sub {
+        ok symlink('does-not-exist', $asset_path), 'created dangling symlink';
+        stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
+        qr/removed dangling symlink '$asset_path' pointing to 'does-not-exist'/, 'removal logged';
+        is readlink($asset_path), undef, 'asset is gone';
     };
     subtest 'removal skipped' => sub {
         stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
-        qr/skipping removal of foo\/some-repo/, 'skpping logged';
+        qr/skipping removal of '$asset_path'/, 'skpping logged';
+    };
+    subtest 'preserve symlink into fixed directory' => sub {
+        my $fixed_asset_path = $asset_path->child('fixed/some-repo');
+        my $fixed_asset_file = $fixed_asset_path->child('repo-file');
+        $fixed_asset_file->spew('a file within the repo');
+        ok symlink('./fixed/some-repo', $asset_path), 'created symlink into fixed directory';
+        stdout_like { $assets->create({type => 'foo', name => 'some-repo', size => 3})->delete }
+        qr{skipping .* '$asset_path'; .* points to './fixed/some-repo'}, 'skipping logged';
+        ok -e $asset_path, 'asset was preserved';
     };
 };
 
