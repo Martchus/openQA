@@ -65,6 +65,7 @@ subtest 'Test configuration default modes' => sub {
             do_push => 'no',
             do_cleanup => 'no',
             checkout_needles_sha => 'no',
+            temp_needle_refs_retention => 120,
         },
         'scheduler' => {
             max_job_scheduled_time => 7,
