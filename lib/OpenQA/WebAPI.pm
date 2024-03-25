@@ -6,7 +6,7 @@ use Mojo::Base 'Mojolicious', -signatures;
 
 use OpenQA::Schema;
 use OpenQA::WebAPI::Plugin::Helpers;
-use OpenQA::Log 'setup_log';
+use OpenQA::Log 'setup_log', 'log_debug';
 use OpenQA::Utils qw(detect_current_version service_port);
 use OpenQA::Setup;
 use OpenQA::WebAPI::Description qw(get_pod_from_controllers set_api_desc);
@@ -87,6 +87,30 @@ sub startup ($self) {
           if $assetpack_error =~ qr/could not find input asset.*node_modules/i;    # uncoverable statement
         die $assetpack_error;    # uncoverable statement
     }
+
+    $r->get('assets/javascripts/modules/*subpath', sub ($c) {
+        return $c->reply->not_found unless my $path = $c->param('subpath');
+        my $static = Mojolicious::Static->new;
+        $static->paths([$c->app->home->child('assets/javascripts/modules')]);
+        return $c->reply->not_found unless my $file = $static->file($path);
+        log_debug 'extname: ' . path($file)->extname;
+        my $filetype = $c->app->types->type(path($file)->extname);
+        $c->res->headers->content_type($filetype) if $filetype;
+        $static->serve_asset($c, $file);
+        return !!$c->rendered;
+    });
+
+    $r->get('node_modules/*subpath', sub ($c) {
+        return $c->reply->not_found unless my $path = $c->param('subpath');
+        my $static = Mojolicious::Static->new;
+        $static->paths([$c->app->home->child('node_modules')]);
+        return $c->reply->not_found unless my $file = $static->file($path);
+        log_debug 'extname: ' . path($file)->extname;
+        my $filetype = $c->app->types->type(path($file)->extname);
+        $c->res->headers->content_type($filetype) if $filetype;
+        $static->serve_asset($c, $file);
+        return !!$c->rendered;
+    });
 
     # set cookie timeout to 48 hours (will be updated on each request)
     $self->app->sessions->default_expiration(48 * 60 * 60);

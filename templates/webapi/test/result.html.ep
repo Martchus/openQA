@@ -11,6 +11,7 @@
         background-image: url("<%= icon_url 'audio.svg' %>");
     }
 </style>
+<script type="module" src="/assets/javascripts/modules/dependency_graph.js"></script>
 % end
 
 % content_for 'ready_function' => begin
