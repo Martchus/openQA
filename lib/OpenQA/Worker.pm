@@ -213,6 +213,8 @@ sub capabilities ($self) {
         # TODO: check installed qemu and kvm?
     }
 
+    $caps->{parallel_one_host_only} = $global_settings->{PARALLEL_ONE_HOST_ONLY};
+
     return $self->{_caps} = $caps;
 }
 
