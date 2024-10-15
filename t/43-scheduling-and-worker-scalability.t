@@ -62,6 +62,7 @@ my $jobs = $schema->resultset('Jobs');
 
 # configure websocket server to apply SCALABILITY_TEST_WORKER_LIMIT
 my $worker_limit = $ENV{SCALABILITY_TEST_WORKER_LIMIT} // 100;
+my $worker_limit_2 = $ENV{SCALABILITY_TEST_WORKER_LIMIT_2};
 my $web_socket_server_mock = Test::MockModule->new('OpenQA::WebSockets');
 my $configure_web_socket_server = sub ($self, @args) {
     my $original_function = $web_socket_server_mock->original('_setup');
@@ -175,6 +176,47 @@ subtest 'wait for workers to be idle' => sub {
     }
     is scalar @non_idle_workers, 0, 'all workers idling/limited' or diag explain \@non_idle_workers;
 };
+
+subtest 'restart websocket server with new worker limit' => sub {
+    stop_service($web_socket_server);
+    $worker_limit = $worker_limit_2;
+    $web_socket_server = create_websocket_server(undef, 0, 1, 1);
+
+    note 'Waiting to let restart settle';
+    sleep 15;
+
+    # wait for all workers to register
+    my @worker_search_args = ({'properties.key' => 'WEBSOCKET_API_VERSION'}, {join => 'properties'});
+    my $actual_count = 0;
+    for my $try (1 .. $polling_tries_workers) {
+        last if ($actual_count = $workers->search(@worker_search_args)->count) == $worker_count;
+        note("Waiting until all workers are registered, try $try");    # uncoverable statement
+        sleep $polling_interval;    # uncoverable statement
+    }
+    is $actual_count, $worker_count, 'all workers registered';
+
+    # wait for expected number of workers to become limited
+    my $limited_workers = max(0, $worker_count - $worker_limit);
+    $worker_count = min($worker_count, $worker_limit);
+    for my $try (1 .. $polling_tries_workers) {
+        last if ($actual_count = $workers->search({error => {-like => '%limited%'}})->count) == $limited_workers;
+        note("Waiting until $limited_workers workers are limited, try $try");    # uncoverable statement
+        sleep $polling_interval;    # uncoverable statement
+    }
+    is $actual_count, $limited_workers, 'expected number of workers limited';
+
+    # check that no workers are in unexpected offline/error states
+    my @non_idle_workers;
+    for my $worker ($workers->all) {
+        my $is_idle = $worker->status eq 'idle';
+        my $is_idle_or_limited = $is_idle || $worker->error =~ qr/limited/;
+        $worker_ids{$worker->id} = 1 if $is_idle;
+        push(@non_idle_workers, $worker->info)    # uncoverable statement
+          if !$is_idle_or_limited || ($worker->websocket_api_version || 0) != WEBSOCKET_API_VERSION;
+    }
+    is scalar @non_idle_workers, 0, 'all workers idling/limited' or diag explain \@non_idle_workers;
+  }
+  if defined $worker_limit_2;
 
 subtest 'assign and run jobs' => sub {
     my $scheduler = OpenQA::Scheduler::Model::Jobs->singleton;
