@@ -305,7 +305,22 @@ sub engine_workit ($job, $callback) {
         $job_settings->{$i} = $ENV{$i};
     }
     for my $key (keys %$job_settings) {
-        $job_settings->{$key} =~ s/(download|dist)\.suse\.de/mirror.nue2.suse.org/g;
+        if ($job_settings->{$key} =~ s/(download|dist)\.suse\.de/mirror.nue2.suse.org/g) {
+            my $new_value = $job_settings->{$key};
+            log_debug("Changed setting $key: $new_value");
+            my @new_urls = split(qr/[\,\;]/, $new_value);
+            for my $new_url (@new_urls) {
+                next unless $new_url =~ qr/https?:/;
+                next if $new_url =~ qr/\@INCIDENTNR\@/;
+                use Mojo::UserAgent;
+                my $ua = Mojo::UserAgent->new;
+                if (my $error = $ua->get($new_url)->error) {
+                    return $callback->({error => "Unable to query replaced URL '$new_url': $error->{message}", category => WORKER_EC_ASSET_FAILURE});
+                } else {
+                    log_debug("Replaced URL '$new_url' can be queried successfully.");
+                }
+            }
+        }
     }
     if (open(my $fh, '>', 'job.json')) {
         print $fh Cpanel::JSON::XS->new->pretty(1)->encode($job_info);
