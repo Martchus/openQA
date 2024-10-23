@@ -304,6 +304,9 @@ sub engine_workit ($job, $callback) {
     for my $i (qw(QEMUPORT VNC OPENQA_HOSTNAME)) {
         $job_settings->{$i} = $ENV{$i};
     }
+    for my $key (keys %$job_settings) {
+        $job_settings->{$key} =~ s/(download|dist)\.suse\.de/mirror.nue2.suse.org/g;
+    }
     if (open(my $fh, '>', 'job.json')) {
         print $fh Cpanel::JSON::XS->new->pretty(1)->encode($job_info);
         close $fh;
