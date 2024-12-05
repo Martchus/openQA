@@ -4,7 +4,17 @@
 package OpenQA::WebAPI::Controller::ApiKey;
 use Mojo::Base 'Mojolicious::Controller', -signatures;
 
+use Apache::Htpasswd;
 use DateTime::Format::Pg;
+use OpenQA::Utils qw(prjdir);
+
+use constant {ASSETS_HTPASSWD_PATH => '/webui/auth/assets.htpasswd'};
+
+sub _update_assets_htpasswd_file ($self, $api_key, $delete) {
+    my $file = Apache::Htpasswd->new(prjdir() . ASSETS_HTPASSWD_PATH);
+    my $name = join('-', $self->current_user->name, $api_key->key);
+    ($delete ? $file->htDelete($name) : $file->htpasswd($name, $api_key->secret)) or die $file->error;
+}
 
 sub index ($self) {
     my @keys = $self->current_user->api_keys;
@@ -27,7 +37,10 @@ sub create ($self) {
         $error = $@;
     }
     unless ($error) {
-        eval { $self->schema->resultset('ApiKeys')->create({user_id => $user->id, t_expiration => $expiration}) };
+        eval {
+            my $key = $self->schema->resultset('ApiKeys')->create({user_id => $user->id, t_expiration => $expiration});
+            $self->_update_assets_htpasswd_file($key, 0);
+        };
         $error = $@;
     }
     if ($error) {
@@ -43,8 +56,11 @@ sub destroy ($self) {
     my $key = $user->find_related('api_keys', {id => $self->param('apikeyid')});
 
     if ($key) {
-        $key->delete;
-        $self->flash(info => 'API key deleted');
+        eval {
+            $self->_update_assets_htpasswd_file($key, 1);
+            $key->delete;
+        };
+        $self->flash($@ ? (error => $@) : (info => 'API key deleted'));
     }
     else {
         $self->flash(error => 'API key not found');

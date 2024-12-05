@@ -13,6 +13,8 @@ if_modified_since before;
 ## Optional faster assets downloads for large deployments
 #location /assets {
 #    alias /var/lib/openqa/share/factory/;
+#    auth_basic "login to download assets";
+#    auth_basic_user_file /var/lib/openqa/webui/auth/assets.htpasswd;
 #    autoindex          on;
 #    tcp_nopush         on;
 #    sendfile           on;

@@ -32,6 +32,7 @@ build_requires:
 
 common_requires:
   perl: '>= 5.20.0'
+  perl(Apache::Htpasswd):
   perl(Carp::Always): '>= 0.14.02'
   perl(Config::IniFiles):
   perl(Cpanel::JSON::XS): '>= 4.09'

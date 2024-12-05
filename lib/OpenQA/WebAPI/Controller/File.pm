@@ -133,10 +133,24 @@ sub test_asset ($self) {
 
     # map to URL - mojo will canonicalize
     $path = $self->url_for('download_asset', assetpath => $path);
-    $self->app->log->debug("redirect to $path");
+
+    # add user credentials so the reverse proxy can authorize the request
+    my $require_auth_for_assets = $self->app->config->{auth}->{require_for_assets};
+    my $user = $self->current_user;
+    if ($require_auth_for_assets && $user) {
+        if (my $api_key = $user->api_keys->search({}, {order_by => {-desc => 'id'}, rows => 1})->first) {
+            # FIXME: don't hardcode scheme and host
+            $path->scheme('http');
+            $path->host('localhost');
+            $path->userinfo(sprintf('%s-%s:%s', $user->name, $api_key->key, $api_key->secret));
+        }
+    }
+
     # pass the redirect to the reverse proxy - might come back to use
     # in case there is no proxy (e.g. in tests)
-    return $self->redirect_to($path);
+    $self->app->log->debug("redirect to $path");
+    $self->res->code(302)->headers->add(Location => $path->to_unsafe_string);
+    $self->render(text => 'redirection');
 }
 
 sub _serve_static ($self, $asset) {
