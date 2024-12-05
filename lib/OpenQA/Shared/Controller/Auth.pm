@@ -45,29 +45,25 @@ sub check ($self) {
 
 sub auth ($self) {
     my $log = $self->app->log;
-
-    # Browser with a logged in user
     my ($user, $reason) = (undef, 'Not authorized');
-    if ($user = $self->current_user) {
+
+    # Personal access token
+    if (my $userinfo = $self->req->url->to_abs->userinfo) {
+        $log->trace('got user info');
+        ($user, $reason) = $self->_token_auth($reason, $userinfo);
+    }
+    # API key
+    elsif (my $key = $self->req->headers->header('X-API-Key')) {
+        $log->trace('got api key');
+        ($user, $reason) = $self->_key_auth($reason, $key);
+    }
+    # Browser with a logged in user
+    elsif ($user = $self->current_user) {
         ($user, $reason) = (undef, 'Bad CSRF token!') unless $self->valid_csrf;
     }
-
-    # No session (probably not a browser)
     else {
-
-        # Personal access token
-        if (my $userinfo = $self->req->url->to_abs->userinfo) {
-            ($user, $reason) = $self->_token_auth($reason, $userinfo);
-        }
-
-        # API key
-        elsif (my $key = $self->req->headers->header('X-API-Key')) {
-            ($user, $reason) = $self->_key_auth($reason, $key);
-        }
-        else {
-            $log->trace('No API key from client');
-            $reason = 'no api key';
-        }
+        $log->trace('No API key from client');
+        $reason = 'no api key';
     }
 
     if ($user) {
