@@ -48,12 +48,12 @@ sub auth ($self) {
 
     # Browser with a logged in user
     my ($user, $reason) = (undef, 'Not authorized');
-    if ($user = $self->current_user) {
-        ($user, $reason) = (undef, 'Bad CSRF token!') unless $self->valid_csrf;
-    }
+    #if ($user = $self->current_user) {
+    #    ($user, $reason) = (undef, 'Bad CSRF token!') unless $self->valid_csrf;
+    #}
 
     # No session (probably not a browser)
-    else {
+    #else {
 
         # Personal access token
         if (my $userinfo = $self->req->url->to_abs->userinfo) {
@@ -68,7 +68,7 @@ sub auth ($self) {
             $log->trace('No API key from client');
             $reason = 'no api key';
         }
-    }
+    #}
 
     if ($user) {
         $log->trace(sprintf 'API auth by user: %s, operator: %d', $user->username, $user->is_operator);

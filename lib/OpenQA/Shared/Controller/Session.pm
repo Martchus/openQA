@@ -46,6 +46,7 @@ sub destroy {
 sub create {
     my ($self) = @_;
     my $ref = $self->req->headers->referrer;
+    print ("referrer: $ref\n");
     my $auth_method = $self->app->config->{auth}->{method};
     my $auth_module = "OpenQA::WebAPI::Auth::$auth_method";
 
@@ -54,7 +55,6 @@ sub create {
 
     croak "Method auth_login missing from class $auth_module" unless my $sub = $auth_module->can('auth_login');
     my %res = $self->$sub;
-
     return $self->render(text => 'Forbidden', status => 403) unless %res;
     return $self->render(text => $res{error}, status => 403) if $res{error};
     return if $res{manual};
@@ -63,7 +63,13 @@ sub create {
         return $self->redirect_to($res{redirect});
     }
     $self->emit_event('openqa_user_login');
-    return $self->redirect_to($ref);
+    #my $return_page = $self->param('return_page');
+    #if ($return_page) {
+    #    $self->res->code(302)->headers->add(Location => $return_page);
+    #    return $self->render(text => 'redirection');
+    #}
+    #return $self->render(text => 'ok') if ;
+    return $self->redirect_to($ref) unless $ref eq $self->url_for('auth');
 }
 
 sub response {

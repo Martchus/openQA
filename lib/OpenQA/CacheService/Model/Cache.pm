@@ -108,7 +108,9 @@ sub get_asset ($self, $host, $job, $type, $asset) {
     # Keep temporary files on the same partition as the cache
     my $log = $self->log;
     my $downloader = $self->downloader->log($log)->tmpdir($self->_realpath->child('tmp')->to_string);
+    $log->info("Using credentials from client.conf for host $host");
     $downloader->ua->configure_credentials($url->host);
+    $log->info("apikey: " . $downloader->ua->apikey);
 
     my $start;
     my $options = {
