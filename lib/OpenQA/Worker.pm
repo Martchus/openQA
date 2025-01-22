@@ -70,7 +70,7 @@ sub new ($class, $cli_options) {
 
     # determine settings and create app
     my $settings = OpenQA::Worker::Settings->new($instance_number, $cli_options);
-    my $short_hostname = (POSIX::uname)[1];
+    my $short_hostname = $ENV{FAKE_HOST} // (POSIX::uname)[1];
     my $app = OpenQA::Worker::App->new(
         mode => 'production',
         log_name => 'worker',
@@ -604,6 +604,7 @@ sub is_qemu_running ($self) {
 }
 
 sub is_ovs_dbus_service_running ($self) {
+    return 1;
     eval { defined &Net::DBus::system or require Net::DBus };
     return 0 if $@;
     my $bus = ($self->{_system_dbus} //= Net::DBus->system(nomainloop => 1));

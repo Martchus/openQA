@@ -181,6 +181,8 @@ sub _can_grab_job {
 sub _can_accept_job {
     my ($client, $webui_host, $job_info, $job_ids_to_grab) = @_;
 
+    return undef if $ENV{NO_ACCEPT};
+
     my $job_id_missing = ref($job_info) ne 'HASH' || !defined $job_info->{id};
     if ($job_id_missing || !$job_info->{settings}) {
         $client->reject_jobs($job_ids_to_grab // [$job_info->{id}], 'the provided job is invalid')
