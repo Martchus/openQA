@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 use Test::Most;
+use Mojo::Base -signatures;
 
 use FindBin;
 use lib "$FindBin::Bin/lib", "$FindBin::Bin/../external/os-autoinst-common/lib";
@@ -341,6 +342,64 @@ subtest 'check for missing assets' => sub {
           'private assets correctly detected also when other asset is missing'
           or always_explain $missing_assets;
     };
+};
+
+subtest 'concurrent asset creation' => sub {
+    # define jobs and assets to be created/registered
+    my @base_settings = (DISTRI => 'sle', VERSION => '12-SP5', FLAVOR => 'Server-DVD-Updates', ARCH => 'x86_64');
+    my $asset_name_1 = 'SLES-12-SP5-x86_64-mru-install-desktop-with-addons-Build20250211-1.qcow2';
+    my $asset_name_2 = 'SLES-12-SP5-x86_64-mru-install-desktop-with-addons-Build20250211-2.qcow2';
+    my %settings_1 = (@base_settings, TEST => 'job1', HDD_1 => $asset_name_1);
+    my %settings_2 = (@base_settings, TEST => 'job2', HDD_1 => $asset_name_2);
+    my $create_job_1 = sub { $jobs->create_from_settings(\%settings_1)->id };
+    my $create_job_2 = sub { $jobs->create_from_settings(\%settings_2)->id };
+    my $random_job = $jobs->find(10);
+    my %options = (refresh_size => 0, missing_ok => 1, created_by => $random_job);
+    my $register_asset_1 = sub { $assets->register(hdd => $asset_name_1, \%options) };
+    my $register_asset_2 = sub { $assets->register(hdd => $asset_name_2, \%options) };
+    my @create_jobs = ($create_job_1, $create_job_2);
+    my @register_assets = ($register_asset_1, $register_asset_2);
+
+    # define a function that returns another function that invokes a set of function in a txn with logging and a delay
+    my $step_dely = $ENV{OPENQA_ASSET_TESTS_STEP_DELAY} // 0;
+    my $txn_with_delay = sub ($name, $reverse, @fn) {
+        my @res;
+        $schema->txn_do(sub {
+          my $step = 0;
+          note "$name: starting txn";
+          for my $fn ($reverse ? reverse @fn : @fn) {
+              note "$name: starting step " . ++$step;
+              my $res = $fn->();
+              push @res, $res if defined $res;
+              note "$name: concluded step $step";
+              sleep $step_dely;
+          }
+          note "$name: comitting txn";
+        });
+        return @res;
+    };
+
+    # simulate that the creation of two jobs and the registration of two assets in parallel
+    my $loop = Mojo::IOLoop->singleton;
+    my @all_job_ids;
+    my @promises;
+    for my $i (1..2) {
+        push @promises, $loop->subprocess->run_p(sub ($subprocess) {
+            return $txn_with_delay->("job creation $i", $i % 2 == 0, @create_jobs);
+        })->then(sub (@job_ids) { push @all_job_ids, @job_ids });
+    }
+    for my $i (1..2) {
+        push @promises, $loop->subprocess->run_p(sub ($subprocess) {
+            return $txn_with_delay->("register $i", $i % 2 == 0, @register_assets);
+        });
+    }
+
+    # wait for results and check
+    $_->wait for @promises;
+    is @all_job_ids, 4, "jobs created with IDs @all_job_ids";
+    ok $assets->find({type => 'hdd', name => $asset_name_1}), 'asset 1 created';
+    ok $assets->find({type => 'hdd', name => $asset_name_2}), 'asset 2 created';
+    is $jobs->find($_)->assets->count, 1, "job $_ with asset associated" for @all_job_ids;
 };
 
 done_testing();
