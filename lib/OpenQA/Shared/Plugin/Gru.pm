@@ -216,13 +216,15 @@ sub enqueue ($self, $task, $args = [], $options = {}, $jobs = []) {
 # enqueues the limit_assets task with the default parameters
 sub enqueue_limit_assets ($self) { $self->enqueue('limit_assets', [], {priority => 0, ttl => 172800, limit => 1}) }
 
-sub enqueue_download_jobs ($self, $downloads) {
+sub enqueue_download_jobs ($self, $downloads, $minion_ids = undef) {
     return unless %$downloads;
     # array of hashrefs job_id => id; this is what create needs
     # to create entries in a related table (gru_dependencies)
     for my $url (keys %$downloads) {
         my ($path, $do_extract, $block_job_ids) = @{$downloads->{$url}};
-        $self->enqueue('download_asset', [$url, $path, $do_extract], {priority => 10}, $block_job_ids);
+        my $id
+          = $self->enqueue('download_asset', [$url, $path, $do_extract], {priority => 10}, $block_job_ids)->{minion_id};
+        push @$minion_ids, $id if $minion_ids;
     }
 }
 
@@ -253,7 +255,7 @@ sub enqueue_git_update_all ($self) {
     $self->enqueue('git_clone', \%clones, {priority => 10});
 }
 
-sub enqueue_git_clones ($self, $clones, $job_ids) {
+sub enqueue_git_clones ($self, $clones, $job_ids, $minion_ids = undef) {
     return unless keys %$clones;
     return unless OpenQA::App->singleton->config->{'scm git'}->{git_auto_clone} eq 'yes';
     # $clones is a hashref with paths as keys and git urls as values
@@ -267,7 +269,10 @@ sub enqueue_git_clones ($self, $clones, $job_ids) {
     }
 
     my $found = $self->_find_existing_minion_job('git_clone', $clones_sr, $job_ids);
-    $self->enqueue('git_clone', $clones_sr, {priority => 10}, $job_ids) unless $found;
+    return $found if $found;
+    my $job = $self->enqueue('git_clone', $clones_sr, {priority => 10}, $job_ids);
+    push @$minion_ids, $job->{minion_id} if $minion_ids;
+    return $job;
 }
 
 sub enqueue_and_keep_track {

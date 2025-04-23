@@ -9,7 +9,9 @@ use Mojo::Util qw(dumper);
 sub _grutasks ($self) { $self->minion->app->schema->resultset('GruTasks'); }
 
 sub execute ($self) {
-    my $gru_id = $self->info->{notes}{gru_id};
+    my $notes = $self->info->{notes};
+    return $self->finish if $notes->{obsolete};
+    my $gru_id = $notes->{gru_id};
     if ($gru_id and not $self->info->{finished}) {
         # We have a gru_id and this is the first run of the job
         my $gru = $self->_grutasks->find($gru_id);
