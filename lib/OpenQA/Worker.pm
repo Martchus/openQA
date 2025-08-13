@@ -151,6 +151,9 @@ sub capabilities ($self) {
         delete $caps->{job_id};
     }
 
+    # pass the current error so the web UI can keep track of the availability of this worker slot
+    if (my $error = $self->current_error) { $caps->{error} = $error }
+
     # do not update subsequent values; just return the previously cached values
     return $caps if $cached_caps;
 

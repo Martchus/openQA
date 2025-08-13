@@ -83,9 +83,7 @@ B<NOTE>: currently this function is used in create (API entry point)
 
 =cut
 
-sub _register {
-    my ($self, $schema, $host, $instance, $caps, $jobs_worker_says_it_works_on) = @_;
-
+sub _register ($self, $schema, $host, $instance, $caps, $jobs_worker_says_it_works_on, $error) {
     die 'Incompatible websocket API version'
       if WEBSOCKET_API_VERSION != ($caps->{websocket_api_version} // 0);
 
@@ -94,13 +92,14 @@ sub _register {
 
     # update or create database entry for worker
     if ($worker) {
-        $worker->update({t_seen => now(), error => undef});
+        $worker->update({t_seen => now(), error => $error});
     }
     else {
         $worker = $workers->create(
             {
                 host => $host,
                 instance => $instance,
+                error => $error,
                 job_id => undef,
                 t_seen => now()});
     }
@@ -174,17 +173,18 @@ sub create {
       = qw(cpu_arch cpu_modelname cpu_opmode cpu_flags mem_max isotovideo_interface_version websocket_api_version worker_class parallel_one_host_only);
     $validation->required($_) for qw(host instance cpu_arch mem_max worker_class);
     $validation->optional($_) for qw(cpu_modelname cpu_opmode cpu_flags isotovideo_interface_version job_id
-      websocket_api_version parallel_one_host_only);
+      websocket_api_version parallel_one_host_only error);
     return $self->reply->validation_error({format => 'json'}) if $validation->has_error;
 
     my $host = $validation->param('host');
     my $instance = $validation->param('instance');
     my $job_ids = $validation->every_param('job_id');
+    my $error = $validation->param('error');
     my $caps = {};
     $caps->{$_} = $validation->param($_) for @validation_params;
     my $id;
     try {
-        $id = $self->_register($self->schema, $host, $instance, $caps, $job_ids);
+        $id = $self->_register($self->schema, $host, $instance, $caps, $job_ids, $error);
     }
     catch ($e) {
         if ($e =~ /Incompatible/) {
