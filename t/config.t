@@ -53,6 +53,7 @@ subtest 'Test configuration default modes' => sub {
             profiling_enabled => 0,
             monitoring_enabled => 0,
             hide_asset_types => 'repo',
+            allow_browsing_insecure_files => 0,
             recognized_referers => [],
             changelog_file => '/usr/share/openqa/public/Changelog',
             job_investigate_ignore => '"(JOBTOKEN|NAME)"',

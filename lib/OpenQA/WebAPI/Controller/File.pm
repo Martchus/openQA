@@ -158,13 +158,16 @@ sub _serve_static ($self, $asset) {
         my $headers = $self->res->headers;
         if ($filename =~ m/\.([^\.]+)$/) {
             my $ext = $1;
+            my $as_attachment = 1;
             if (my $filetype = $self->app->types->type($ext)) {
                 $headers->content_type($filetype);
                 $headers->header('X-Content-Type-Options', 'nosniff') if $filetype =~ qr|^text/plain;?|;
+                my $allow_insecure = $self->app->config->{global}->{allow_browsing_insecure_files};
+                $as_attachment = 0 if ($allow_insecure || $filetype !~ m|html|) && $ext ne 'iso';
             }
 
             # force saveAs
-            $headers->content_disposition("attachment; filename=$filename;") if $ext eq 'iso';
+            $headers->content_disposition("attachment; filename=$filename;") if $as_attachment;
         }
         else {
             $self->res->headers->content_type('application/octet-stream');

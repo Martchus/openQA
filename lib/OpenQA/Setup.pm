@@ -78,6 +78,7 @@ sub read_config ($app) {
             monitoring_enabled => 0,
             plugins => undef,
             hide_asset_types => 'repo',
+            allow_browsing_insecure_files => 0,
             recognized_referers => '',
             changelog_file => '/usr/share/openqa/public/Changelog',
             job_investigate_ignore => '"(JOBTOKEN|NAME)"',
