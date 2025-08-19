@@ -72,6 +72,7 @@ sub read_config ($app) {
             # deprecated alternate for git_auto_commit below
             scm => undef,
             hsts => 365,
+            file_subdomain => undef,
             audit_enabled => 1,
             max_rss_limit => 0,
             profiling_enabled => 0,
@@ -289,6 +290,7 @@ sub read_config ($app) {
       = ' .status' . join('', map { ":not(.result_$_)" } split(/\s+/, $results));
     _validate_worker_timeout($app);
     _set_default_storage_durations($_) for $config->{default_group_limits}, $config->{no_group_limits};
+    $global_config->{file_subdomain} .= '.' if defined $global_config->{file_subdomain};
     return $config;
 }
 

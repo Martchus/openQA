@@ -152,6 +152,7 @@ sub _serve_static ($self, $asset) {
     return $self->reply->not_found unless $asset;
     $log->debug('found ' . pp($asset));
 
+    my $is_text = 0;
     if (blessed $asset && $asset->isa('Mojo::Asset::File')) {
         my $filename = basename($asset->path);
         # guess content type from extension
@@ -160,7 +161,10 @@ sub _serve_static ($self, $asset) {
             my $ext = $1;
             if (my $filetype = $self->app->types->type($ext)) {
                 $headers->content_type($filetype);
-                $headers->header('X-Content-Type-Options', 'nosniff') if $filetype =~ qr|^text/plain;?|;
+                if ($filetype =~ qr|^text/plain;?|) {
+                    $headers->header('X-Content-Type-Options', 'nosniff');
+                    $is_text = 1;
+                }
             }
 
             # force saveAs
@@ -168,6 +172,19 @@ sub _serve_static ($self, $asset) {
         }
         else {
             $self->res->headers->content_type('application/octet-stream');
+        }
+    }
+
+    # redirect to a different subdomain so potentially dangerious HTML files cannot use the current session
+    # note: Skipping harmless text files as the viewer doesn't follow redirects and those files are not problematic
+    #       anyway.
+    if (!$is_text && defined(my $subdomain = $self->app->config->{global}->{file_subdomain})) {
+        my $url = $self->req->url->to_abs;
+        my $host = $url->host;
+        if (index($host, $subdomain) == -1) {
+            $url->host($subdomain . $host);
+            $self->redirect_to($url);
+            return 1;
         }
     }
 
