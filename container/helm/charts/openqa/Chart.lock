@@ -8,5 +8,5 @@ dependencies:
 - name: worker
   repository: file://../worker/
   version: 0.1.0
-digest: sha256:0eb1a53cdbbed8bc78066984feddfe993fde87d08c882f58c06d79e7abc10b90
-generated: "2025-09-29T16:05:13.224586625+02:00"
+digest: sha256:c5b33936be40ac3b551020458086727c5ee3f79177f588c4950f856e502c4fe2
+generated: "2025-09-29T16:26:36.515058012+02:00"
