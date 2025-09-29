@@ -1,4 +1,9 @@
+global:
+  security:
+    allowInsecureImages: true
 postgresql:
+  image:
+    repository: bitnamilegacy/postgresql
   enabled: true
   fullnameOverride: db
   auth:
