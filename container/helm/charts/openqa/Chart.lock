@@ -3,10 +3,10 @@ dependencies:
   repository: file://../webui/
   version: 0.1.0
 - name: postgresql
-  repository: https://charts.bitnami.com/bitnami
-  version: 16.7.27
+  repository: file://../postgresql
+  version: 0.1.0
 - name: worker
   repository: file://../worker/
   version: 0.1.0
-digest: sha256:c5b33936be40ac3b551020458086727c5ee3f79177f588c4950f856e502c4fe2
-generated: "2025-09-29T16:26:36.515058012+02:00"
+digest: sha256:498f56db23290d6fa062033f0208967d83f8749e20b8f066578cd0f6bde6b55b
+generated: "2025-09-29T17:38:24.226111422+02:00"

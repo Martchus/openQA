@@ -10,8 +10,8 @@ dependencies:
     version: ~0.1.0
     condition: webui.enabled
   - name: postgresql
+    repository: file://../postgresql
     version: '*'
-    repository: https://charts.bitnami.com/bitnami
     condition: postgresql.enabled
   - name: worker
     repository: file://../worker/
