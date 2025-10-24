@@ -421,7 +421,7 @@ sub start_worker ($connect_args) {
     $ENV{OPENQA_WORKER_CONNECT_RETRIES} = 1;
     # enable additional diagnostics for serialization errors
     $ENV{DEBUG_JSON} = 1;
-    my @cmd = ('perl', './script/worker', "--isotovideo=$isotovideo_path", '--verbose');
+    my @cmd = ('perl', './script/worker', "--isotovideo=$isotovideo_path", '--verbose', '--no-cleanup');
     push @cmd, @$connect_args;
     start \@cmd;
 }

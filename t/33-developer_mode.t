@@ -41,7 +41,6 @@ use OpenQA::SeleniumTest;
 
 plan skip_all => 'set FULLSTACK=1 (be careful)' unless $ENV{FULLSTACK};
 
-
 my $worker;
 my $ws;
 my $livehandler;
@@ -77,6 +76,16 @@ ok(Mojolicious::Commands->start_app('OpenQA::WebAPI', 'eval', '1+0'));
 # start Selenium test driver and other daemons
 my $port = service_port 'webui';
 my $driver = call_driver({mojoport => $port});
+
+use OpenQA::Utils;
+use Data::Dumper;
+undef $?;
+print(
+    Dumper(
+        OpenQA::Utils::run_cmd_with_log_return_error(
+            [qw(optipng -o3 /tmp/test/full-stack.d/openqa/pool/1/testresults/boot-1.png)])));
+exit 0;
+
 $ws = create_websocket_server(undef, 0);
 $scheduler = create_scheduler;
 $livehandler = create_live_view_handler;

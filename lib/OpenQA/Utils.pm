@@ -312,6 +312,7 @@ sub run_cmd_with_log_return_error ($cmd, %args) {
         my @out_args = defined $output_file ? ('>', $output_file, '2>', \$stderr) : (\$stdout, \$stderr);
         my $ipc_run_succeeded = IPC::Run::run($cmd, \$stdin, @out_args);
         my $error_code = $?;
+        log_info("Raw return code: $error_code");
         my $return_code = ($error_code & 127) ? (undef) : ($error_code >> 8);
         my $message
           = defined $return_code
