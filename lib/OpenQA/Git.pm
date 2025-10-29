@@ -93,7 +93,7 @@ sub commit ($self, $args = undef) {
     for my $cmd (qw(add rm)) {
         next unless $args->{$cmd};
         push(@files, @{$args->{$cmd}});
-        my $res = $self->_run_cmd([$cmd, @{$args->{$cmd}}]);
+        my $res = $self->_run_cmd([$cmd, '--', @{$args->{$cmd}}]);
         return $self->_format_git_error($res, "Unable to $cmd via Git") unless $res->{status};
     }
 

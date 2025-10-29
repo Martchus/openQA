@@ -20,6 +20,12 @@ use Test::Mojo;
 use Test::Warnings ':report_warnings';
 use Test::Output qw(stdout_like stdout_unlike combined_like);
 
+use Mojolicious;
+my $empty_tmp_dir2 = Mojo::File->new('/tmp/gittest')->remove_tree->make_path; # tempdir(); tempdir;
+    my $git2 = OpenQA::Git->new({app => Mojolicious->new, dir => $empty_tmp_dir2, user => 'foo'});
+    $git2->invoke_command($_) for ['init'];
+    exit 0;
+
 # allow catching log messages via stdout_like
 delete $ENV{OPENQA_LOGFILE};
 # Avoid using tester's ~/.gitconfig
@@ -69,9 +75,11 @@ subtest 'invoke Git commands for real testing error handling' => sub {
     throws_ok { OpenQA::Git->new({app => $t->app, dir => 'foo/bar'})->commit } qr/no user specified/,
       'exception if user missing';
 
-    my $empty_tmp_dir = tempdir;
+    my $empty_tmp_dir = Mojo::File->new('/tmp/gittest')->remove_tree->make_path; # tempdir(); tempdir;
     my $git = OpenQA::Git->new({app => $t->app, dir => $empty_tmp_dir, user => $first_user});
     my $res;
+    $git->invoke_command($_) for ['init'];
+    exit 0;
 
     subtest 'invoking Git command outside of a Git repo' => sub {
         stdout_like { $res = $git->commit({cmd => 'status', message => 'test'}) }
@@ -84,10 +92,12 @@ subtest 'invoke Git commands for real testing error handling' => sub {
         } qr/\[error\].*cmd returned [1-9][0-9]*/, 'Git error logged for check as well';
     };
 
+
     combined_like {
         $git->invoke_command($_) for ['init'], ['config', 'user.email', 'foo@bar'], ['config', 'user.name', 'Foo'];
     }
     qr/\[info\].*cmd returned 0\n/, 'initialized Git repo; successful command exit logged as info';
+
 
     subtest 'error handling when checking sha' => sub {
         stdout_like { ok !$git->check_sha('this-sha-does-not-exist'), 'return code 1 interpreted correctly' }
@@ -97,6 +107,7 @@ subtest 'invoke Git commands for real testing error handling' => sub {
 
     subtest 'error handling when checking whether working directory is clean' => sub {
         my $test_file = $empty_tmp_dir->child('foo')->touch;
+        print($empty_tmp_dir . ": \n" . `ls -l $empty_tmp_dir` . "\n");
         combined_like { $git->commit({add => ['foo'], message => 'test'}) } qr/commit.*foo.*cmd returned 0/is,
           'commit created';
         stdout_like { ok $git->is_workdir_clean, 'return code 0 interpreted correctly' }
