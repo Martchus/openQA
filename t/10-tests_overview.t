@@ -100,14 +100,14 @@ $t->text_is('#res_DVD_x86_64_doc .failedmodule *' => 'logpackages', 'failed modu
 #
 $t->get_ok('/tests/overview' => form => {distri => 'opensuse', version => '13.1'})->status_is(200);
 $summary = get_summary;
-like($summary, qr/Summary of opensuse 13\.1 build 0091/i, 'summary for 13.1');
-like($summary, qr/Passed: 3 Scheduled: 2 Running: 2 None: 1$/i, 'summary badges for 13.1');
+like($summary, qr/Summary of opensuse 13\.1 showing latest jobs/i, 'summary for 13.1');
+like($summary, qr/Passed: 4 Scheduled: 2 Running: 2 None: 1$/i, 'summary badges for 13.1');
 
 $form = {distri => 'opensuse', version => '13.1', groupid => 1001};
 $t->get_ok('/tests/overview' => form => $form)->status_is(200);
 like(
     get_summary,
-    qr/Summary of opensuse build 0091/i,
+    qr/Summary of opensuse showing latest jobs/i,
     'specifying job group but with no build yields latest build in this group'
 );
 sub flash_msg { $t->tx->res->dom->at('#flash-messages')->all_text }
@@ -121,8 +121,8 @@ like flash_msg, qr/Specified "groupid" is invalid/i, 'msg about invalid groupid'
 #
 $t->get_ok('/tests/overview' => form => {distri => 'opensuse', version => 'Factory'})->status_is(200);
 $summary = get_summary;
-like($summary, qr/Summary of opensuse Factory build 0048\@0815/i);
-like($summary, qr/\QFailed: 1\E/i);
+like($summary, qr/Summary of opensuse Factory showing latest jobs/i);
+like($summary, qr/\QSoft-Failed: 2 Failed: 2\E/i);
 
 #
 # Still possible to check an old build
@@ -162,8 +162,8 @@ subtest 'limit parameter' => sub {
 $form = {distri => 'opensuse', version => '13.1', result => 'passed'};
 $t->get_ok('/tests/overview' => form => $form)->status_is(200);
 $summary = get_summary;
-like($summary, qr/Summary of opensuse 13\.1 build 0091/i, 'Still references the last build');
-like($summary, qr/Passed: 3$/i, 'only passed are shown');
+like($summary, qr/Summary of opensuse 13\.1 showing latest jobs/i, 'Still references the last build');
+like($summary, qr/Passed: 4$/i, 'only passed are shown');
 $t->element_exists('#res_DVD_i586_kde .result_passed');
 $t->element_exists('#res_DVD_i586_textmode .result_passed');
 $t->element_exists_not('#res_DVD_i586_RAID0 .state_scheduled');
@@ -250,10 +250,10 @@ $t->get_ok('/tests/overview?distri=opensuse&version=13.1&groupid=1001&groupid=10
 $summary = get_summary;
 like(
     $summary,
-    qr/Summary of opensuse, opensuse test build 0091[^,]/i,
+    qr/Summary of opensuse, opensuse test showing latest jobs/i,
     'multiple groups with no build specified yield the same, latest build of every group'
 );
-like($summary, qr/current time Passed: 2 Scheduled: 1 Running: 2 None: 1$/i);
+like($summary, qr/current time Passed: 3 Scheduled: 1 Running: 2 None: 1$/i);
 
 my $jobGroup = $schema->resultset('JobGroups')->create(
     {

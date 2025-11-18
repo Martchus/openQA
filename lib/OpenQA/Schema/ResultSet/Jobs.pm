@@ -359,6 +359,23 @@ sub complex_query ($self, %args) {
     return $jobs;
 }
 
+sub complex_query_latest_ids ($self, %args) {
+    # For args where we accept a list of values, allow passing either an
+    # array ref or a comma-separated list
+    for my $arg (qw(state ids result modules modules_result)) {
+        next unless $args{$arg};
+        $args{$arg} = [split(',', $args{$arg})] unless (ref($args{$arg}) eq 'ARRAY');
+    }
+    my ($conds, $attrs) = $self->_prepare_complex_query_search_args(\%args);
+    $attrs->{order_by} = \['max(me.id) DESC'];
+    $attrs->{select} = [qw(max(me.id) TEST DISTRI VERSION BUILD FLAVOR ARCH MACHINE)];
+    $attrs->{as} = [qw(id TEST DISTRI VERSION BUILD FLAVOR ARCH MACHINE)];
+    $attrs->{group_by} = [qw(TEST DISTRI VERSION BUILD FLAVOR ARCH MACHINE)];
+    if (my $until = $args{until}) { push @$conds, {'me.t_created' => {'<=' => $until}} }
+    if (my $filters = $args{filters}) { push @$conds, @$filters }
+    return [map { $_->id } $self->search({-and => $conds}, $attrs)->all];
+}
+
 sub cancel_by_settings (
     $self, $settings,
     $newbuild = undef,

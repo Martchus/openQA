@@ -685,7 +685,7 @@ sub _calculate_preferred_machines ($jobs) {
 }
 
 # Take an job objects arrayref and prepare data structures for 'overview'
-sub _prepare_job_results ($self, $all_jobs, $limit) {
+sub _prepare_job_results ($self, $jobs, $job_ids, $limit) {
     my %archs;
     my %results;
     my @job_ids;
@@ -699,25 +699,11 @@ sub _prepare_job_results ($self, $all_jobs, $limit) {
         running => 0,
         unknown => 0
     };
-    my $preferred_machines = _calculate_preferred_machines($all_jobs);
 
-    # read parameter for additional filtering
-    my $failed_modules = $self->param_hash('failed_modules');
-    my $states = $self->param_hash('state');
-    my $results = $self->param_hash('result');
-    my $archs = $self->param_hash('arch');
-    my $machines = $self->param_hash('machine');
-
-    my @jobs = grep {
-              (not $states or $states->{$_->state})
-          and (not $results or $results->{$_->result})
-          and (not $archs or $archs->{$_->ARCH})
-          and (not $machines or $machines->{$_->MACHINE})
-          and (not $failed_modules or $_->result eq OpenQA::Jobs::Constants::FAILED)
-    } @$all_jobs;
-    my $limit_exceeded = @jobs >= $limit;
-    @jobs = @jobs[0 .. ($limit - 1)] if $limit_exceeded;
-    my @jobids = map { $_->id } @jobs;
+    # get all jobs; there can be one more job than the configured limit which means the limit was exceeded
+    my @jobs = $jobs->all;
+    pop @jobs if my $exceeded_limit = @jobs >= $limit ? $limit : undef;
+    my $preferred_machines = _calculate_preferred_machines(\@jobs);
 
     # prefetch the number of available labels for those jobs
     my $schema = $self->schema;
@@ -726,7 +712,7 @@ sub _prepare_job_results ($self, $all_jobs, $limit) {
     # prefetch test suite names from job settings
     my $job_settings
       = $schema->resultset('JobSettings')
-      ->search({job_id => {-in => [map { $_->id } @jobs]}, key => {-in => [qw(JOB_DESCRIPTION TEST_SUITE_NAME)]}});
+      ->search({job_id => {-in => $job_ids}, key => {-in => [qw(JOB_DESCRIPTION TEST_SUITE_NAME)]}});
     my %settings_by_job_id;
     for my $js ($job_settings->all) {
         $settings_by_job_id{$js->job_id}->{$js->key} = $js->value;
@@ -740,12 +726,13 @@ sub _prepare_job_results ($self, $all_jobs, $limit) {
       = $schema->resultset('TestSuites')->search({name => \%desc_args}, {columns => [qw(name description)]});
     my %descriptions = map { $_->name => $_->description } @descriptions;
 
-    my $failed_modules_by_job = $self->_fetch_failed_modules_by_jobs(\@jobids);
-    my ($children_by_job, $parents_by_job) = $self->_fetch_dependencies_by_jobs(\@jobids);
+    my $failed_modules_by_job = $self->_fetch_failed_modules_by_jobs($job_ids);
+    my ($children_by_job, $parents_by_job) = $self->_fetch_dependencies_by_jobs($job_ids);
     foreach my $job (@jobs) {
         my $id = $job->id;
         my $result = $job->overview_result(
-            $comment_data, $aggregated, $failed_modules,
+            $comment_data, $aggregated,
+            $self->param_hash('failed_modules'),
             $failed_modules_by_job->{$id} || [],
             $self->param('todo')) or next;
         my $test = $job->TEST;
@@ -787,7 +774,7 @@ sub _prepare_job_results ($self, $all_jobs, $limit) {
         my $description = $settings_by_job_id{$id}->{JOB_DESCRIPTION} // $descriptions{$test_suite_names{$id}};
         $results{$distri}{$version}{$flavor}{$test}{description} //= $description;
     }
-    return ($limit_exceeded, \%archs, \%results, \@job_ids, $aggregated);
+    return ($exceeded_limit, \%archs, \%results, $aggregated);
 }
 
 sub _prepare_groupids ($self) {
@@ -850,6 +837,25 @@ sub _add_distri_and_version_to_summary ($array_to_add_parts_to, $distri, $versio
     }
 }
 
+sub _every_non_empty_param ($self, $param_key) {
+    [grep { $_ ne '' } @{$self->every_param($param_key)}]
+}
+
+sub _compute_overview_filtering_params ($self) {
+    my $states = $self->_every_non_empty_param('state');
+    my $results = $self->_every_non_empty_param('result');
+    my $archs = $self->_every_non_empty_param('arch');
+    my $machines = $self->_every_non_empty_param('machine');
+    my $failed_modules = $self->_every_non_empty_param('failed_modules');
+    my %filters;
+    $filters{state} = {-in => $states} if @$states;
+    $filters{result} = {-in => $results} if @$results;
+    $filters{result} = FAILED if @$failed_modules;
+    $filters{ARCH} = {-in => $archs} if @$archs;
+    $filters{MACHINE} = {-in => $machines} if @$machines;
+    return [\%filters];
+}
+
 # A generic query page showing test results in a configurable matrix
 sub overview ($self) {
     my ($search_args, $groups) = $self->compose_job_overview_search_args;
@@ -857,32 +863,26 @@ sub overview ($self) {
     my $validation = $self->validation;
     $validation->optional('t')->datetime;
     my $until = $validation->param('t');
-    my %stash = (
-        # build, version, distri are not mandatory and therefore not
-        # necessarily come from the search args so they can be undefined.
-        build => ref $search_args->{build} eq 'ARRAY' ? join(',', @{$search_args->{build}}) : $search_args->{build},
-        version => $search_args->{version},
-        distri => $search_args->{distri},
-        groups => $groups,
-        until => $until,
-        parallel_children_collapsable_results_sel => $config->{global}->{parallel_children_collapsable_results_sel},
-    );
-    my @jobs = $self->schema->resultset('Jobs')->complex_query(%$search_args)->latest_jobs($until);
-
-    my $limit = $config->{misc_limits}->{tests_overview_max_jobs};
-    (my $limit_exceeded, $stash{archs}, $stash{results}, $stash{job_ids}, $stash{aggregated})
-      = $self->_prepare_job_results(\@jobs, $limit);
+    $search_args->{until} = $until;
+    $search_args->{filters} = $self->_compute_overview_filtering_params;
+    my $distri = $search_args->{distri};
+    my $version = $search_args->{version};
+    my $jobs_rs = $self->schema->resultset('Jobs');
+    my $latest_job_ids = $jobs_rs->complex_query_latest_ids(%$search_args);
+    my $jobs = $jobs_rs->search({id => {-in => $latest_job_ids}});
+    my ($exceeded_limit, $archs, $results, $aggregated)
+      = $self->_prepare_job_results($jobs, $latest_job_ids, $search_args->{limit} - 1);
 
     # determine distri/version from job results if not explicitly specified via search args
-    my @distris = keys %{$stash{results}};
+    my @distris = keys %$results;
     my $formatted_distri;
     my $formatted_version;
     my $only_distri = scalar @distris == 1;
-    if (!defined $stash{distri} && $only_distri) {
+    if (!defined $distri && $only_distri) {
         $formatted_distri = $distris[0];
-        if (!defined $stash{version}) {
-            my @versions = keys %{$stash{results}->{$formatted_distri}};
-            $formatted_version = $versions[0] if (scalar @versions == 1);
+        if (!defined $version) {
+            my @versions = keys %{$results->{$formatted_distri}};
+            $formatted_version = $versions[0] if scalar @versions == 1;
         }
     }
 
@@ -899,18 +899,28 @@ sub overview ($self) {
         _add_distri_and_version_to_summary(\@summary_parts, $formatted_distri, $formatted_version, 1);
 
         # add distri and version from query parameters as regular strings
-        _add_distri_and_version_to_summary(\@summary_parts, $stash{distri}, $stash{version}, 0);
+        _add_distri_and_version_to_summary(\@summary_parts, $distri, $version, 0);
     }
 
-    $self->stash(
-        %stash,
+    my %stash = (
+        # build, version, distri are not mandatory and therefore not
+        # necessarily come from the search args so they can be undefined.
+        build => ref $search_args->{build} eq 'ARRAY' ? join(',', @{$search_args->{build}}) : $search_args->{build},
+        distri => $distri,
+        version => $version,
+        groups => $groups,
+        archs => $archs,
+        results => $results,
+        aggregated => $aggregated,
+        job_ids => $latest_job_ids,
+        until => $until,
+        parallel_children_collapsable_results_sel => $config->{global}->{parallel_children_collapsable_results_sel},
         summary_parts => \@summary_parts,
         only_distri => $only_distri,
-        limit_exceeded => $limit_exceeded ? $limit : undef
+        limit_exceeded => $exceeded_limit,
     );
-    $self->respond_to(
-        json => {json => \%stash},
-        html => {template => 'test/overview'});
+    $self->stash(\%stash);
+    $self->respond_to(json => {json => \%stash}, html => {template => 'test/overview'});
 }
 
 sub _get_latest_job ($self) {

@@ -11,7 +11,7 @@ use OpenQA::Utils qw(bugurl human_readable_size render_escaped_refs href_to_bugr
 use OpenQA::Events;
 use OpenQA::Jobs::Constants qw(EXECUTION_STATES PRE_EXECUTION_STATES ABORTED_RESULTS FAILED NOT_COMPLETE_RESULTS);
 use Text::Glob qw(glob_to_regex_string);
-use List::Util qw(any);
+use List::Util qw(any min);
 use Feature::Compat::Try;
 
 sub register ($self, $app, $config) {
@@ -410,7 +410,8 @@ sub _compose_job_overview_search_args ($c) {
     $v->optional('limit', 'not_empty')->num(0, undef);
 
     # add simple query params to search args
-    $search_args{limit} = $v->param('limit') if $v->is_valid('limit');
+    my $configured_limit = $c->app->config->{misc_limits}->{tests_overview_max_jobs};
+    $search_args{limit} = ($v->is_valid('limit') ? min($configured_limit, $v->param('limit')) : $configured_limit) + 1;
     for my $arg (qw(distri version flavor test)) {
         next unless $v->is_valid($arg);
         my @params = @{$v->every_param($arg) // []};
