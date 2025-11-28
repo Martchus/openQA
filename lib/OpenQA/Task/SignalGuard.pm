@@ -17,6 +17,12 @@ has retry => 1;
 #       action twice.
 has abort => 0;
 
+# a callback to invoke when receiving a signal
+# note: The signal guard object is passed as first argument and the signal number as 2nd argument.
+#       It is invoked before retry/aborted are evaluated so you can still change those variables.
+#       If the callback returns a truthy value no further action is taken, though.
+has callback => undef;
+
 # retries the specified Minion job when receiving SIGTERM/SIGINT as long as the returned object exists
 # note: Prevents the job to fail with "Job terminated unexpectedly".
 sub new ($class, $job, @attributes) {
@@ -33,6 +39,8 @@ sub new ($class, $job, @attributes) {
 }
 
 sub _handle_signal ($self_weak, $signal) {
+    if (my $callback = $self_weak->callback) { return undef if $callback->($self_weak, $signal) }
+
     # abort job if the corresponding flag is set
     my $job = $self_weak->{_job};
     if ($self_weak->abort) {
