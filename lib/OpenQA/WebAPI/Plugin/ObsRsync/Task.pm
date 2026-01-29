@@ -66,8 +66,15 @@ sub run ($job, $args) {
     my ($stdin, $stdout, $error);
     my $exit_code = -1;
     my $error_from_exception;
+    $ensure_task_retry_on_termination_signal_guard->retry(0);
     try { IPC::Run::run(\@cmd, \$stdin, \$stdout, \$error); $exit_code = $?; }
     catch ($e) { $error_from_exception = $e }
+    if (OpenQA::Task::SignalGuard->signaled) {
+        $job->note(interrupted => 'Removing .run_last symlinks after receiving signal');
+        my $symlinks = path($project)->list_tree({hidden => 1, max_depth => 2})->grep(qr|/\.run_last$|);
+        $symlinks->each(sub ($file) { $file->remove });
+        return $job->retry;
+    }
 
     $helper->unlock($project);
     return $job->finish(0) if (!$exit_code);
