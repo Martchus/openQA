@@ -48,7 +48,9 @@ sub destroy ($self) {
     my $auth_method = $self->app->config->{auth}->{method};
     my $auth_module = "OpenQA::WebAPI::Auth::$auth_method";
     if (my $sub = $auth_module->can('auth_logout')) { $self->$sub }
-    delete $self->session->{user};
+    my $session = $self->session;
+    delete $session->{user};
+    delete $session->{return_page};
     $self->redirect_to('index');
 }
 
@@ -71,6 +73,8 @@ sub create ($self) {
 
     # prevent redirecting loop when referrer is login page
     $ref = 'index' if !$ref or $ref eq $self->url_for('login');
+    $self->{redirect_uri} = $ref;
+    $self->session->{return_page} = $ref;
 
     croak "Method auth_login missing from class $auth_module" unless my $sub = $auth_module->can('auth_login');
 

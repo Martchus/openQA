@@ -85,8 +85,10 @@ sub update_user ($controller, $main_config, $provider_config, $data) {
         fullname => $details->{name},
         email => $details->{email});
 
-    $controller->session->{user} = $user->username;
-    $controller->redirect_to('index');
+    my $session = $controller->session;
+    $session->{user} = $user->username;
+    #$controller->redirect_to($session->{return_page} // 'index');
+    $controller->redirect_to($controller->{redirect_uri} // 'index');
 }
 
 sub auth_login ($controller) {
@@ -95,7 +97,7 @@ sub auth_login ($controller) {
 
     my $base_url = $controller->app->config->{global}->{base_url};
     my $host = $base_url ? Mojo::URL->new($base_url)->host : $controller->req->url->host;
-    my $get_token_args = {redirect_uri => $controller->url_for('login')->userinfo(undef)->host($host)->to_abs};
+    my $get_token_args = {redirect_uri => $controller->{redirect_uri} // $controller->url_for('login')->userinfo(undef)->host($host)->to_abs};
     $get_token_args->{scope} = $provider_config->{token_scope};
     $controller->oauth2->get_token_p($main_config->{provider} => $get_token_args)
       ->then(sub { update_user($controller, $main_config, $provider_config, shift) })
