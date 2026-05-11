@@ -48,6 +48,7 @@ find = {}
 
 [tool.ruff]
 line-length = 120
+include = ["container/openqa_data/scripts/client-conf"]
 exclude = ["t/data"]
 preview = true
 
@@ -138,7 +139,6 @@ max-complexity = 9
 docstring-code-format = true
 
 [tool.ruff.lint.flake8-copyright]
-author = "SUSE LLC"
 notice-rgx = "Copyright"
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]

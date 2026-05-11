@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Copyright 2015 Red Hat
+# Copyright (C) 2015 Red Hat
 #
 # This script is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,13 +17,16 @@
 #
 # Author: Adam Williamson <awilliam@redhat.com>
 
-# Convenience tool for fiddling with the config files in Docker-ized
-# openQA data containers. client.conf stores the API key/secret pairs,
-# workers.ini specifies which server workers using that data container
-# will try to connect to.
+"""Convenience tool for fiddling with the config files in Docker-ized openQA data containers.
+
+client.conf stores the API key/secret pairs, workers.ini specifies which server workers using
+that data container will try to connect to.
+"""
 
 import argparse
+import pathlib
 import sys
+
 # Avoiding six for now, but let's be py3-compatible
 try:
     import ConfigParser as configparser
@@ -32,34 +35,37 @@ except ImportError:
 
 # HELPER FUNCTIONS
 
+
 def _read_configs():
     """Read the config files."""
     cliconf = configparser.ConfigParser()
-    cliconf.read('/data/conf/client.conf')
+    cliconf.read("/data/conf/client.conf")
     workconf = configparser.ConfigParser()
     # This makes the parser case-sensitive - the HOST value is
     # upper-case
     workconf.optionxform = str
-    workconf.read('/data/conf/workers.ini')
+    workconf.read("/data/conf/workers.ini")
     return (cliconf, workconf)
+
 
 def _workers(workconf, hostname, secure):
     """Change the workers.ini HOST setting. All the subcommands
     may need to use this, so sharing it.
     """
     if secure:
-        url = "https://{0}".format(hostname)
+        url = f"https://{hostname}"
     else:
-        url = "http://{0}".format(hostname)
+        url = f"http://{hostname}"
     try:
-        workconf.add_section('global')
+        workconf.add_section("global")
     except configparser.DuplicateSectionError:
         pass
-    workconf.set('global', 'HOST', url)
-    with open('/data/conf/workers.ini', 'w') as fout:
+    workconf.set("global", "HOST", url)
+    with pathlib.Path("/data/conf/workers.ini").open("w") as fout:
         workconf.write(fout)
 
 # SUB-COMMAND FUNCTIONS
+
 
 def set_key(args, cliconf, workconf):
     """Add or update a client.conf entry and change workers.ini to
@@ -67,18 +73,19 @@ def set_key(args, cliconf, workconf):
     """
     sections = [args.hostname]
     if args.localhost:
-        sections.append('localhost')
+        sections.append("localhost")
     for section in sections:
         try:
             cliconf.add_section(section)
         except configparser.DuplicateSectionError:
             pass
-        cliconf.set(section, 'key', args.key)
-        cliconf.set(section, 'secret', args.secret)
-    with open('/data/conf/client.conf', 'w') as fout:
+        cliconf.set(section, "key", args.key)
+        cliconf.set(section, "secret", args.secret)
+    with pathlib.Path("/data/conf/client.conf").open("w") as fout:
         cliconf.write(fout)
     if not args.nodefault:
         _workers(workconf, args.hostname, args.secure)
+
 
 def remove(args, cliconf, workconf):
     """Remove an entry from client.conf and update workers.ini to
@@ -87,13 +94,13 @@ def remove(args, cliconf, workconf):
     """
     if not cliconf.remove_section(args.hostname):
         sys.exit("Specified server not found in config!")
-    with open('/data/conf/client.conf', 'w') as fout:
+    with pathlib.Path("/data/conf/client.conf").open("w") as fout:
         cliconf.write(fout)
     if len(cliconf.sections()) < 1:
         print("WARNING: no servers remain in config!")
         sys.exit()
     try:
-        curr = workconf.get('global', 'HOST').split('//')[1]
+        curr = workconf.get("global", "HOST").split("//")[1]
     except (configparser.NoOptionError, configparser.NoSectionError):
         sys.exit()
     # If we just removed the server that workers are supposed to
@@ -105,11 +112,12 @@ def remove(args, cliconf, workconf):
                   "Guessing which to use for workers!")
             # We'll prefer 'localhost' then 'openqa_webui' then just
             # pick the first one.
-            if 'localhost' in cliconf.sections():
-                host = 'localhost'
-            elif 'openqa_webui' in cliconf.sections():
-                host = 'openqa_webui'
+            if "localhost" in cliconf.sections():
+                host = "localhost"
+            elif "openqa_webui" in cliconf.sections():
+                host = "openqa_webui"
         _workers(workconf, host, args.secure)
+
 
 def workers(args, cliconf, workconf):
     """Update workers.ini to point to the specified host."""
@@ -119,6 +127,7 @@ def workers(args, cliconf, workconf):
 
 # ARG PARSING AND MAIN LOOP
 
+
 def parse_args():
     """Argument parsing."""
     parser = argparse.ArgumentParser(description=(
@@ -126,39 +135,40 @@ def parse_args():
     subparsers = parser.add_subparsers()
 
     parser_set = subparsers.add_parser(
-        'set', description="Set a server key/secret. Server will be added "
+        "set", description="Set a server key/secret. Server will be added "
         "if it does not exist, modified if it does.")
     parser_set.add_argument(
-        '-t', '--hostname', help="The hostname", default="openqa_webui")
+        "-t", "--hostname", help="The hostname", default="openqa_webui")
     parser_set.add_argument(
-        '-l', '--localhost', help="Set same key/secret for 'localhost'",
-        action='store_true')
+        "-l", "--localhost", help="Set same key/secret for 'localhost'",
+        action="store_true")
     parser_set.add_argument(
-        '-n', '--nodefault', help="Do not make this entry the default for "
-        "workers", action='store_true')
+        "-n", "--nodefault", help="Do not make this entry the default for "
+        "workers", action="store_true")
     parser_set.add_argument(
-        'key', help="The key", metavar="KEY")
+        "key", help="The key", metavar="KEY")
     parser_set.add_argument(
-        'secret', help="The secret", metavar="SECRET")
+        "secret", help="The secret", metavar="SECRET")
     parser_set.set_defaults(func=set_key)
 
     parser_remove = subparsers.add_parser(
-        'remove', description="Remove a server.")
+        "remove", description="Remove a server.")
     parser_remove.add_argument(
-        'hostname', help="The hostname")
+        "hostname", help="The hostname")
     parser_remove.set_defaults(func=remove)
 
     parser_workers = subparsers.add_parser(
-        'workers', description="Set the server workers will connect to.")
+        "workers", description="Set the server workers will connect to.")
     parser_workers.add_argument(
-        'hostname', help="The hostname")
+        "hostname", help="The hostname")
     parser_workers.set_defaults(func=workers)
 
     parser.add_argument(
-        '-s', '--secure', help="Use HTTPS for worker connections",
-        action='store_true')
+        "-s", "--secure", help="Use HTTPS for worker connections",
+        action="store_true")
 
     return parser.parse_args()
+
 
 def main():
     """Main loop."""
@@ -170,5 +180,6 @@ def main():
         sys.stderr.write("Interrupted, exiting...\n")
         sys.exit(1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
