@@ -4,7 +4,10 @@
 package OpenQA::Test::TimeLimit;
 use Test::Most;
 
+use Test2::API qw(test2_add_callback_context_release);
+
 my $SCALE_FACTOR;
+my $TIMED_OUT;
 
 sub _calculate_scale_factor {
     return $SCALE_FACTOR if defined $SCALE_FACTOR;
@@ -22,7 +25,15 @@ sub import {
     # disable timeout if requested by ENV variable or running within debugger
     return if ($ENV{OPENQA_TEST_TIMEOUT_DISABLE} or $INC{'perl5db.pl'});
     $limit *= $SCALE_FACTOR;
-    $SIG{ALRM} = sub { BAIL_OUT "test '$0' exceeds runtime limit of '$limit' seconds\n" };
+    $SIG{ALRM} = sub {
+        $TIMED_OUT = 1;
+        fail "test '$0' exceeds runtime limit of '$limit' seconds\n";
+    };
+    test2_add_callback_context_release(sub {
+        my ($ctx) = @_;
+        $ctx->bail('(bail on failure due to exceeded timeout)') if !$ctx->hub->is_passing && $TIMED_OUT;
+        return;
+    });
     alarm $limit;
 }
 

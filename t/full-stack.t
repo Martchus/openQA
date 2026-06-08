@@ -41,7 +41,7 @@ use Mojo::IOLoop::ReadWriteProcess::Session 'session';
 
 use FindBin;
 use lib "$FindBin::Bin/lib", "$FindBin::Bin/../external/os-autoinst-common/lib";
-use OpenQA::Test::TimeLimit '200';
+use OpenQA::Test::TimeLimit '5';
 
 use OpenQA::CacheService::Client;
 use OpenQA::Jobs::Constants qw(INCOMPLETE);
