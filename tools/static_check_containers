@@ -8,9 +8,11 @@ if [ "$(curl -s -w "%{http_code}" https://ghcr.io/v2/ -o /dev/null)" = "401" ]; 
 else
     img=ghcr.io/hadolint/hadolint
 fi
-cre="${cre:-"podman"}"
+# use runc by default to avoid "OCI runtime error: crun: unknown version specified"
+cre=${cre:-podman} runtime=${cre_runtime_flags:---runtime=runc}
 dockerfiles=(container/*/Dockerfile*)
 echo "# Static check of Dockerfiles"
 set -x
-$cre run -e 'HOME=/' --rm -v"$PWD":/repo:Z -w /repo "$img" hadolint "${dockerfiles[@]}"
+# shellcheck disable=SC2086
+$cre run $runtime -e 'HOME=/' --rm -v"$PWD":/repo:Z -w /repo "$img" hadolint "${dockerfiles[@]}"
 echo "All files ok"
