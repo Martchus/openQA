@@ -980,6 +980,46 @@ subtest 'Avoiding concurrent result uploads' => sub {
         is scalar(keys %timers), 1, 'exactly one upload timer remains after the startup scenario';
       };
 
+    subtest 'multiple calls to _upload_results while in flight are batched into a single deferred upload' => sub {
+        @sent = ();
+        @pending = ();
+        %timers = ();
+        my $job = OpenQA::Worker::Job->new($worker, $client, {id => 10, URL => $engine_url});
+        $job->{_engine} = {child => Test::FakeEngine->new};
+        $job->_upload_results(sub { });
+        is scalar(@pending), 1, 'ongoing upload in flight';
+
+        my ($invoked_1, $invoked_2) = (0, 0);
+        $job->_upload_results(sub { ++$invoked_1 });
+        $job->_upload_results(sub { ++$invoked_2 });
+        is scalar(@pending), 1, 'still only 1 upload in flight';
+
+        shift(@pending)->({});
+        $drain->();
+        is scalar(@sent), 2, 'exactly one deferred upload started for both callers';
+        is scalar(@pending), 1, 'single deferred upload in flight';
+
+        shift(@pending)->({});
+        $drain->();
+        is $invoked_1, 1, 'first deferred callback invoked';
+        is $invoked_2, 1, 'second deferred callback invoked';
+    };
+
+    subtest 'exception in _upload_results_step_0_prepare concludes upload safely' => sub {
+        my $job = OpenQA::Worker::Job->new($worker, $client, {id => 11, URL => $engine_url});
+        my $job_mock = Test::MockModule->new('OpenQA::Worker::Job');
+        $job_mock->redefine(_upload_results_step_0_prepare => sub { die "prepare failed\n" });
+        my $concluded = 0;
+        $job->once(uploading_results_concluded => sub { ++$concluded });
+        combined_like {
+            $job->_upload_results(sub { })
+        }
+        qr/Failed to prepare result upload: prepare failed/, 'error logged on exception during prepare';
+        ok !$job->is_uploading_results, 'job is not stuck in uploading results';
+        is $concluded, 1, 'uploading_results_concluded emitted on error';
+        $job_mock->unmock('_upload_results_step_0_prepare');
+    };
+
     $client_mock->unmock('send');
     $io_loop_mock->unmock('timer', 'remove');
 };

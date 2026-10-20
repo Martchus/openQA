@@ -716,9 +716,20 @@ sub conclude_upload_if_ongoing ($self, $result = {}) {
 }
 
 sub _upload_results ($self, $callback) {
-    # avoid concurrent upload chains; the deferred call removes the timer set by the ongoing one
-    return $self->once(uploading_results_concluded => sub (@) { $self->_upload_results($callback) })
-      if $self->{_is_uploading_results};
+    if ($self->{_is_uploading_results}) {
+        push @{$self->{_deferred_upload_callbacks}}, $callback if $callback;
+        return undef if $self->{_has_deferred_upload_listener};
+        $self->{_has_deferred_upload_listener} = 1;
+        return $self->once(
+            uploading_results_concluded => sub (@) {
+                delete $self->{_has_deferred_upload_listener};
+                my $callbacks = delete $self->{_deferred_upload_callbacks} // [];
+                $self->_upload_results(
+                    sub (@args) {
+                        $_->(@args) for @$callbacks;
+                    });
+            });
+    }
 
     # ensure an ongoing timer is cancelled in case upload_results has been called manually
     if (my $upload_results_timer = delete $self->{_upload_results_timer}) {
@@ -738,7 +749,14 @@ sub _upload_results ($self, $callback) {
         $callback->(@args) if $concluded++ == 0 && $callback;    # ensure we invoke $callback only once
     };
     $self->{_upload_results_callback} = $safe_callback;
-    $self->_upload_results_step_0_prepare($safe_callback);
+    try {
+        $self->_upload_results_step_0_prepare($safe_callback);
+    }
+    catch ($e) {
+        log_error("Failed to prepare result upload: $e");
+        $self->{_result_upload_error} = $e;
+        $self->_conclude_upload($safe_callback);
+    }
 }
 
 sub _upload_results_step_0_prepare ($self, $callback) {
