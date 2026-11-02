@@ -730,7 +730,8 @@ sub _upload_results_step_0_prepare ($self, $callback) {
         test_execution_paused => 0,
     );
 
-    my $test_status = -r $status_file ? decode_json(path($status_file)->slurp) : {};
+    my $test_status_json = -r $status_file ? path($status_file)->slurp : undef;
+    my $test_status = $test_status_json ? decode_json($test_status_json) : {};
     my $test_state = $test_status->{status} || '';
     my $running_test = $test_status->{current_test} || '';
     my $finished = $test_state eq 'finished' || $self->{_has_uploaded_logs_and_assets};
