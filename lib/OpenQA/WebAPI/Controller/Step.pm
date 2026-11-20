@@ -436,7 +436,8 @@ sub save_needle_ajax ($self) {
         }
     )->then(
         sub ($result) {
-            # handle request for overwrite
+            return unless $self->tx;    # uncoverable statement
+                                        # handle request for overwrite
             if ($result->{requires_overwrite}) {
                 my $initial_request = $self->req->params->to_hash;
                 $initial_request->{requires_overwrite} = 1;
